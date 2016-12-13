@@ -26,7 +26,7 @@ mvn clean package
 **Note**: comment Aliyun mirror since Aliyun Nexus doesn't have all the central repos synced.
 
 ```
-mvn clean hpi:run
+mvn clean hpi:run -Djava.net.preferIPv4Stack=true
 ```
 
 License
