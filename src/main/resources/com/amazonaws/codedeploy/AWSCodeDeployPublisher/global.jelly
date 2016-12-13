@@ -1,0 +1,27 @@
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+  <f:section title="AWS CodeDeploy Credentials">
+      <f:description>
+          FIT2CLOUD 代码部署插件全局设置，如果在每个 Job 中没有单独设置 FIT2CLOUD 的 API 信息，则会复用如下配置。
+          具体信息可在用户菜单 -> 账户信息中查找到。
+      </f:description>
+
+      <f:entry title="FIT2CLOUD API Endpoint" field="f2cEndpoint">
+          <f:textbox />
+      </f:entry>
+      <f:entry title="API Access Key" field="f2cAccessKey">
+        <f:textbox />
+      </f:entry>
+      <f:entry title="API Secret Key" field="f2cSecretKey">
+        <f:password/>
+      </f:entry>
+      <f:description>
+          如果 Jenkins 和 FIT2CLOUD 网络需要代理服务，可以进行如下配置
+      </f:description>
+      <f:entry title="Proxy Host" field="proxyHost">
+        <f:textbox default="" />
+      </f:entry>
+      <f:entry title="Proxy Port" field="proxyPort">
+        <f:textbox default="" />
+      </f:entry>
+  </f:section>
+</j:jelly>
