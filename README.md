@@ -1,29 +1,33 @@
-AWS CodeDeploy Jenkins Plugin
+FIT2CLOUD CodeDeploy Jenkins Plugin
 =============================
 
-The AWS CodeDeploy Jenkins plugin provides a post-build step for your Jenkins
-project. Upon a successful build, it will zip the workspace, upload to S3, and
-start a new deployment. Optionally, you can set it to wait for the deployment to
-finish, making the final success contingent on the success of the deployment.
-
-Setting up
+Development
 ----------
 
-After building and installing the plugin, some simple configuration is needed
-for your project. 
+- Typical maven project, if you find it too slow to resolv the dependencies, try add Aliyun Nexus mirror to you ~/.m2/settings.xml
 
-1. Open up your project configuration
-1. In the `Post-build Actions` section, select "Deploy an application to AWS
-CodeDeploy"
-1. Application Name, Deployment Group, Deployment Config, and region are all
-required options.
-1. For authentication, there are two options. Either option requires that the
-associated role has, at minimum, a policy that permits `codedeploy:*` and
-`s3:Put*`.
-  1. Access/Secret key pair. For example, the keys associated with a specific
-  IAM user. If left blank, the default chain of credentials will be checked.
-  1. Temporary access keys. These will use the global keys from the Jenkins
-  instance.
+```
+ <mirror>
+   <id>nexus-aliyun</id>
+   <mirrorOf>*</mirrorOf>
+   <name>Nexus aliyun</name>
+   <url>http://maven.aliyun.com/nexus/content/groups/public</url>
+ </mirror> 
+```
+
+- Release .hpi
+
+```
+mvn clean package
+```
+
+- Online Debug
+
+**Note**: comment Aliyun mirror since Aliyun Nexus doesn't have all the central repos synced.
+
+```
+mvn clean hpi:run
+```
 
 License
 -------
