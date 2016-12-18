@@ -14,57 +14,45 @@
  */
 package com.amazonaws.codedeploy;
 
-import com.amazonaws.regions.Regions;
-import com.amazonaws.services.codedeploy.model.ListApplicationsResult;
-import com.amazonaws.services.codedeploy.model.ListDeploymentGroupsRequest;
-import com.amazonaws.services.codedeploy.model.ListDeploymentGroupsResult;
-import com.amazonaws.services.codedeploy.model.RevisionLocation;
-import com.amazonaws.services.codedeploy.model.RevisionLocationType;
-import com.amazonaws.services.s3.model.PutObjectResult;
-import com.amazonaws.services.codedeploy.model.BundleType;
-import com.amazonaws.services.codedeploy.model.CreateDeploymentRequest;
-import com.amazonaws.services.codedeploy.model.CreateDeploymentResult;
-import com.amazonaws.services.codedeploy.model.DeploymentInfo;
-import com.amazonaws.services.codedeploy.model.DeploymentOverview;
-import com.amazonaws.services.codedeploy.model.DeploymentStatus;
-import com.amazonaws.services.codedeploy.model.GetDeploymentRequest;
-import com.amazonaws.services.codedeploy.model.RegisterApplicationRevisionRequest;
-import com.amazonaws.services.codedeploy.model.S3Location;
-
-import hudson.FilePath;
-import hudson.Launcher;
-import hudson.Extension;
-import hudson.Util;
-import hudson.model.AbstractBuild;
-import hudson.model.BuildListener;
-import hudson.model.AbstractProject;
-import hudson.model.Result;
-import hudson.tasks.BuildStepMonitor;
-import hudson.tasks.BuildStepDescriptor;
-import hudson.tasks.Publisher;
-import hudson.util.DirScanner;
-import hudson.util.FileVisitor;
-import hudson.util.FormValidation;
-import hudson.util.ListBoxModel;
-import net.sf.json.JSONException;
-import net.sf.json.JSONObject;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.io.FileUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.util.Date;
-import java.util.Map;
-import java.util.UUID;
+import com.fit2cloud.sdk.Fit2CloudClient;
+import com.fit2cloud.sdk.Fit2CloudException;
+import com.fit2cloud.sdk.model.Application;
+import com.fit2cloud.sdk.model.ApplicationDeployment;
+import com.fit2cloud.sdk.model.ApplicationDeploymentLog;
+import com.fit2cloud.sdk.model.ApplicationRepo;
+import com.fit2cloud.sdk.model.ApplicationRevision;
+import com.fit2cloud.sdk.model.Cluster;
+import com.fit2cloud.sdk.model.ClusterRole;
+import com.fit2cloud.sdk.model.ContactGroup;
+import com.fit2cloud.sdk.model.Server;
 
-import javax.servlet.ServletException;
+import hudson.Extension;
+import hudson.FilePath;
+import hudson.Launcher;
+import hudson.model.AbstractBuild;
+import hudson.model.AbstractProject;
+import hudson.model.BuildListener;
+import hudson.model.Result;
+import hudson.tasks.BuildStepDescriptor;
+import hudson.tasks.BuildStepMonitor;
+import hudson.tasks.Publisher;
+import hudson.util.DirScanner;
+import hudson.util.FormValidation;
+import hudson.util.ListBoxModel;
+import net.sf.json.JSONObject;
 
 /**
  * The AWS CodeDeploy Publisher is a post-build plugin that adds the ability to start a new CodeDeploy deployment
@@ -75,87 +63,69 @@ import javax.servlet.ServletException;
  * credentials to be configured for each project.
  */
 public class AWSCodeDeployPublisher extends Publisher {
-    public static final long      DEFAULT_TIMEOUT_SECONDS           = 900;
+    private static final String LOG_PREFIX = "[FIT2CLOUD 代码部署]";
+	public static final long      DEFAULT_TIMEOUT_SECONDS           = 900;
     public static final long      DEFAULT_POLLING_FREQUENCY_SECONDS = 15;
     public static final String    ROLE_SESSION_NAME                 = "jenkins-codedeploy-plugin";
-    public static final Regions[] AVAILABLE_REGIONS                 = {Regions.AP_NORTHEAST_1, Regions.AP_SOUTHEAST_1, Regions.AP_SOUTHEAST_2, Regions.EU_WEST_1, Regions.US_EAST_1, Regions.US_WEST_2, Regions.EU_CENTRAL_1, Regions.US_WEST_1, Regions.SA_EAST_1};
+    
+    private final String f2cEndpoint;
+    private final String f2cAccessKey;
+    private final String f2cSecretKey;
+    
+    private final Long applicationRepoId;
+    private final Long applicationId;
+    private final String applicationVersion;
 
-    private final String  s3bucket;
-    private final String  s3prefix;
-    private final String  applicationName;
-    private final String  deploymentGroupName; // TODO allow for deployment to multiple groups
-    private final String  deploymentConfig;
-    private final Long    pollingTimeoutSec;
-    private final Long    pollingFreqSec;
-    private final boolean deploymentGroupAppspec;
-    private final boolean waitForCompletion;
-    private final String  externalId;
-    private final String  iamRoleArn;
-    private final String region;
     private final String includes;
     private final String excludes;
-    private final String subdirectory;
-    private final String proxyHost;
-    private final int proxyPort;
-
-    private final String awsAccessKey;
-    private final String awsSecretKey;
-    private final String credentials;
-    private final String deploymentMethod;
-    private final String versionFileName;
-
+    private final String description;
+    
+    private final String artifactType;
+    private final String nexusGroupId;
+    private final String nexusArtifactId;
+    private final String nexusArtifactVersion;
+    private final boolean autoDeploy;
+    private final boolean waitForCompletion;
+    private final Long pollingTimeoutSec;
+    private final Long pollingFreqSec;
+    
+    private final Long clusterId;
+    private final Long clusterRoleId;
+    private final Long serverId;
+    private final Long contactGroupId;
+    private final String deployStrategy;
+    
     private PrintStream logger;
-    private Map <String, String> envVars;
-    // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
+    
+	// Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
-    public AWSCodeDeployPublisher(
-            String s3bucket,
-            String s3prefix,
-            String applicationName,
-            String deploymentGroupName,
-            String deploymentConfig,
-            String region,
-            Boolean deploymentGroupAppspec,
-            Boolean waitForCompletion,
-            Long pollingTimeoutSec,
-            Long pollingFreqSec,
-            String credentials,
-            String versionFileName,
-            String deploymentMethod,
-            String awsAccessKey,
-            String awsSecretKey,
-            String iamRoleArn,
-            String externalId,
-            String includes,
-            String proxyHost,
-            int proxyPort,
-            String excludes,
-            String subdirectory) {
-
-        this.externalId = externalId;
-        this.applicationName = applicationName;
-        this.deploymentGroupName = deploymentGroupName;
-        if (deploymentConfig != null && deploymentConfig.length() == 0) {
-            this.deploymentConfig = null;
-        } else {
-            this.deploymentConfig = deploymentConfig;
-        }
-        this.region = region;
-        this.includes = includes;
-        this.excludes = excludes;
-        this.subdirectory = subdirectory;
-        this.proxyHost = proxyHost;
-        this.proxyPort = proxyPort;
-        this.credentials = credentials;
-        this.deploymentMethod = deploymentMethod;
-        this.versionFileName = versionFileName;
-        this.awsAccessKey = awsAccessKey;
-        this.awsSecretKey = awsSecretKey;
-        this.iamRoleArn = iamRoleArn;
-        this.deploymentGroupAppspec = deploymentGroupAppspec;
-
-        if (waitForCompletion != null && waitForCompletion) {
-            this.waitForCompletion = waitForCompletion;
+    public AWSCodeDeployPublisher(String f2cEndpoint, String f2cAccessKey, String f2cSecretKey, Long applicationRepoId,
+    		Long applicationId, String applicationVersion, String includes, String excludes, Boolean autoDeploy,
+    		String artifactType, String nexusGroupId, String nexusArtifactId, String nexusArtifactVersion, Boolean waitForCompletion, Long pollingTimeoutSec,
+    		Long pollingFreqSec, Long clusterId, Long clusterRoleId, Long serverId, Long contactGroupId,
+    		String deployStrategy, String description) {
+		this.f2cEndpoint = f2cEndpoint;
+		this.f2cAccessKey = f2cAccessKey;
+		this.f2cSecretKey = f2cSecretKey;
+		this.applicationRepoId = applicationRepoId;
+		this.applicationId = applicationId;
+		this.applicationVersion = applicationVersion;
+		this.includes = includes;
+		this.excludes = excludes;
+		this.nexusGroupId = nexusGroupId;
+		this.nexusArtifactId = nexusArtifactId;
+		this.nexusArtifactVersion = nexusArtifactVersion;
+		this.clusterId = clusterId;
+		this.clusterRoleId = clusterRoleId;
+		this.serverId = serverId;
+		this.contactGroupId = contactGroupId;
+		this.deployStrategy = deployStrategy;
+		this.artifactType = StringUtils.isBlank(artifactType) ? ArtifactType.NEXUS : artifactType;
+		this.autoDeploy = autoDeploy == null ? false : autoDeploy;
+		this.description = description;
+		
+		if (waitForCompletion != null && waitForCompletion) {
+            this.waitForCompletion = true;
             if (pollingTimeoutSec == null) {
                 this.pollingTimeoutSec = DEFAULT_TIMEOUT_SECONDS;
             } else {
@@ -171,296 +141,211 @@ public class AWSCodeDeployPublisher extends Publisher {
             this.pollingTimeoutSec = null;
             this.pollingFreqSec = null;
         }
-
-        this.s3bucket = s3bucket;
-        if (s3prefix == null || s3prefix.equals("/") || s3prefix.length() == 0) {
-            this.s3prefix = "";
-        } else {
-            this.s3prefix = s3prefix;
-        }
-    }
-
-    @Override
+	}
+    
+	@Override
     public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener) throws IOException, InterruptedException {
         this.logger = listener.getLogger();
-        envVars = build.getEnvironment(listener);
         final boolean buildFailed = build.getResult() == Result.FAILURE;
         if (buildFailed) {
-            logger.println("Skipping CodeDeploy publisher as build failed");
+            log("Skipping CodeDeploy publisher as build failed");
             return true;
         }
+        
+        String newAppVersion = Utils.replaceTokens(build, listener, this.applicationVersion);
 
-        AWSClients aws;
-        if ("awsAccessKey".equals(credentials)) {
-            if (StringUtils.isEmpty(this.awsAccessKey) && StringUtils.isEmpty(this.awsSecretKey)) {
-                aws = AWSClients.fromDefaultCredentialChain(
-                        this.region,
-                        this.proxyHost,
-                        this.proxyPort);
-            } else {
-                aws = AWSClients.fromBasicCredentials(
-                        this.region,
-                        this.awsAccessKey,
-                        this.awsSecretKey,
-                        this.proxyHost,
-                        this.proxyPort);
-            }
-        } else {
-            aws = AWSClients.fromIAMRole(
-                this.region,
-                this.iamRoleArn,
-                this.getDescriptor().getExternalId(),
-                this.proxyHost,
-                this.proxyPort);
-        }
-
-        boolean success;
-
+		final Fit2CloudClient fit2CloudClient = new Fit2CloudClient(this.f2cAccessKey, this.f2cSecretKey, this.f2cEndpoint);
+		
+		ApplicationRepo repo = null;
+		try {
+			repo = fit2CloudClient.getApplicationRepo(applicationRepoId);
+		} catch (Fit2CloudException e) {
+		} finally {
+			if(repo == null) {
+				log("仓库无效,无法注册到FIT2CLOUD.");
+				return false;
+			}
+		}
+		
+		Application app = null;
+		try {
+			app = fit2CloudClient.getApplication(applicationId);
+		} catch (Fit2CloudException e) {
+		} finally {
+			if(app == null) {
+				log("应用无效,无法注册到FIT2CLOUD.");
+				return false;
+			}
+		}
+		
+		String repoType = repo.getType();
+		if(!artifactType.equalsIgnoreCase(repoType)) {
+			log("所选仓库与 \"Zip文件上传设置\"中的类型设置不匹配!");
+			return false;
+		}
+		
+		Cluster cluster = null;
+		try {
+			cluster = fit2CloudClient.getCluster(clusterId);
+		} catch (Fit2CloudException e) {
+		} finally {
+			if(cluster == null) {
+				log("目标集群无效,无法注册到FIT2CLOUD.");
+				return false;
+			}
+		}
+		
+		String clusterRoleName = null;
+		try {
+			ClusterRole clusterRole = fit2CloudClient.getClusterRole(clusterRoleId);
+			if(clusterRole != null) {
+				clusterRoleName = clusterRole.getName();
+			}
+		} catch (Fit2CloudException e) {
+		}
+		
+		int buildNumber = build.getNumber();
+		String prjName = build.getProject().getName();
+		File zipFile = null;
+		String newAddress = null;
         try {
-
-            verifyCodeDeployApplication(aws);
-
-            String projectName = build.getProject().getName();
-            RevisionLocation revisionLocation = zipAndUpload(aws, projectName, getSourceDirectory(build.getWorkspace()));
-
-            registerRevision(aws, revisionLocation);
-            if ("onlyRevision".equals(deploymentMethod)){
-              success = true;
-            } else {
-
-              String deploymentId = createDeployment(aws, revisionLocation);
-
-              success = waitForDeployment(aws, deploymentId);
-            }
-
-        } catch (Exception e) {
-
-            this.logger.println("Failed CodeDeploy post-build step; exception follows.");
-            this.logger.println(e.getMessage());
+        	final FilePath workspace = build.getWorkspace();
+        	String zipFileName = prjName+"-"+buildNumber+".zip";
+        	zipFile = zipFile(zipFileName, workspace);
+        	
+        	switch (artifactType) {
+			case ArtifactType.NEXUS:
+				if(StringUtils.isBlank(nexusArtifactId) || StringUtils.isBlank(nexusGroupId) || StringUtils.isBlank(nexusArtifactVersion)) {
+					log("请输入上传至 Nexus 的 GroupId、 ArtifactId 和 NexusArtifactVersion");
+					return false;
+				}
+				log("开始上传zip文件到nexus服务器");
+				try {
+					newAddress = NexusUploader.upload(zipFile, repo.getAccessId(), repo.getAccessPassword(), repo.getRepo(), nexusGroupId, nexusArtifactId, String.valueOf(buildNumber), "zip", nexusArtifactVersion);
+				} catch (Exception e) {
+					log("上传文件到 Nexus 服务器失败！错误消息如下:");
+		            log(e.getMessage());
+		            e.printStackTrace(this.logger);
+		            return false;
+				}
+				log("上传zip文件到nexus服务器成功!");
+				break;
+			default:
+				log("暂时不支持 "+artifactType+" 类型制品库");
+				return false;
+			}
+        }catch(Exception e) {
+        	e.printStackTrace();
+        }finally {
+        	if(zipFile != null) {
+        		final boolean deleted = zipFile.delete();
+        		if (!deleted) {
+        			log("删除zip文件失败 : " + zipFile.getPath());
+        		}else {
+        			log("成功删除zip文件 : " + zipFile.getPath());
+        		}
+        	}
+        }
+        ApplicationRevision applicationRevision = null;
+		try {
+			applicationRevision = fit2CloudClient.addApplicationRevision(newAppVersion,description,app.getName(),repo.getName(),newAddress,null);
+			log("注册应用版本成功: 新版本Id是"+applicationRevision.getId());
+		} catch (Fit2CloudException e) {
+			log("注册FIT2CLOUD应用版本失败，错误消息如下:");
+            log(e.getMessage());
             e.printStackTrace(this.logger);
-            success = false;
+            return false;
+		}
+		
+		if(autoDeploy){
+            try {
+                log("开始自动部署新注册的应用版本...");
+                ApplicationDeployment applicationDeployment = fit2CloudClient.addDeployment(applicationRevision.getApplicationName()
+                        ,applicationRevision.getName()
+                        ,cluster.getName()
+                        ,clusterRoleName
+                        ,serverId
+                        ,deployStrategy
+                        ,"Jenkins触发"
+                        ,contactGroupId);
 
-        }
-
-        return success;
-    }
-
-    private FilePath getSourceDirectory(FilePath basePath) throws IOException, InterruptedException {
-        String subdirectory = StringUtils.trimToEmpty(getSubdirectoryFromEnv());
-        if (!subdirectory.isEmpty() && !subdirectory.startsWith("/")) {
-            subdirectory = "/" + subdirectory;
-        }
-        FilePath sourcePath = basePath.withSuffix(subdirectory).absolutize();
-        if (!sourcePath.isDirectory() || !isSubDirectory(basePath, sourcePath)) {
-            throw new IllegalArgumentException("Provided path (resolved as '" + sourcePath
-                    +"') is not a subdirectory of the workspace (resolved as '" + basePath + "')");
-        }
-        return sourcePath;
-    }
-
-    private boolean isSubDirectory(FilePath parent, FilePath child) {
-        FilePath parentFolder = child;
-        while (parentFolder!=null) {
-            if (parent.equals(parentFolder)) {
-                return true;
-            }
-            parentFolder = parentFolder.getParent();
-        }
-        return false;
-    }
-
-    private void verifyCodeDeployApplication(AWSClients aws) throws IllegalArgumentException {
-        // Check that the application exists
-        ListApplicationsResult applications = aws.codedeploy.listApplications();
-        String applicationName = getApplicationNameFromEnv();
-        String deploymentGroupName = getDeploymentGroupNameFromEnv();
-
-        if (!applications.getApplications().contains(applicationName)) {
-            throw new IllegalArgumentException("Cannot find application named '" + applicationName + "'");
-        }
-
-        // Check that the deployment group exists
-        ListDeploymentGroupsResult deploymentGroups = aws.codedeploy.listDeploymentGroups(
-                new ListDeploymentGroupsRequest()
-                        .withApplicationName(applicationName)
-        );
-
-        if (!deploymentGroups.getDeploymentGroups().contains(deploymentGroupName)) {
-            throw new IllegalArgumentException("Cannot find deployment group named '" + deploymentGroupName + "'");
-        }
-    }
-
-    private RevisionLocation zipAndUpload(AWSClients aws, String projectName, FilePath sourceDirectory) throws IOException, InterruptedException, IllegalArgumentException {
-
-        File zipFile = null;
-        File versionFile;
-        versionFile = new File(sourceDirectory + "/" + versionFileName);
-
-        FileReader reader = null;
-        String version = null;
-        try {
-          reader = new FileReader(versionFile);
-          char[] chars = new char[(int) versionFile.length() -1];
-          reader.read(chars);
-          version = new String(chars);
-          reader.close();
-        } catch (IOException e) {
-          e.printStackTrace();
-        } finally {
-          if(reader !=null){reader.close();}
-        }
-
-        if (version != null){
-          zipFile = new File("/tmp/" + projectName + "-" + version + ".zip");
-          zipFile.createNewFile();
-        } else {
-          zipFile = File.createTempFile(projectName + "-", ".zip");
-        }
-
-        String key;
-        File appspec;
-        File dest;
-        String deploymentGroupName = getDeploymentGroupNameFromEnv();
-        String prefix = getS3PrefixFromEnv();
-        String bucket = getS3BucketFromEnv();
-
-        if(bucket.indexOf("/") > 0){
-            throw new IllegalArgumentException("S3 Bucket field cannot contain any subdirectories.  Bucket name only!");
-        }
-
-        try {
-            if (this.deploymentGroupAppspec) {
-                appspec = new File(sourceDirectory + "/appspec." + deploymentGroupName + ".yml");
-                if (appspec.exists()) {
-                    dest = new File(sourceDirectory + "/appspec.yml");
-                    FileUtils.copyFile(appspec, dest);
-                    logger.println("Use appspec." + deploymentGroupName + ".yml");
+                log("触发FIT2CLOUD代码部署成功。");
+                
+                if(waitForCompletion) {
+                	
+                	HashMap<String, String> deploymentStatusMap = new HashMap<String, String>();
+                	deploymentStatusMap.put("pendding", "等待部署");
+                	deploymentStatusMap.put("executing", "部署中");
+                	deploymentStatusMap.put("successed", "部署成功");
+                	deploymentStatusMap.put("failed", "部署失败");
+                	deploymentStatusMap.put("canceled", "取消部署");
+                	log(applicationRevision.getApplicationName()+"的部署状态:");
+                	int i = 0;
+                	boolean success = true;
+                	while(true) {
+                		try {
+                			Thread.sleep(pollingFreqSec*1000);
+                		} catch (InterruptedException e) {
+                		}
+                		boolean allFinished = true;
+                		success = true;
+                		List<ApplicationDeploymentLog> logs = fit2CloudClient.getDeploymentLogs(applicationDeployment.getId());
+                		for(ApplicationDeploymentLog log : logs){
+                			log("主机:"+log.getServerName()+ "->" +deploymentStatusMap.get(log.getStatus()));
+                			if(log.getStatus().equals("failed")){
+                				success = false;
+                			}
+                			if(log.getStatus().equals("executing")||log.getStatus().equals("pendding")){
+                				allFinished = false;
+                			}
+                		}
+                		if(allFinished){
+                			if(success){
+                				log("部署成功！");
+                			}else{
+                				log("部署失败！");
+                			}
+                			break;
+                		}
+                		if(pollingFreqSec * ++i > pollingTimeoutSec){
+                			this.log("部署超时,请查看FIT2CLOUD控制台！");
+                			return false;
+                		}
+                	}
+                }else {
+                    log("具体部署结果请登录FIT2CLOUD控制台查看。");
                 }
-                if (!appspec.exists()) {
-                    throw new IllegalArgumentException("/appspec." + deploymentGroupName + ".yml file does not exist" );
-                }
-
+            }catch (Exception e){
+                log("触发FIT2CLOUD代码部署失败，错误消息如下:");
+                log(e.getMessage());
+                e.printStackTrace(this.logger);
+                return false;
             }
+        }
+        return true;
+    }
 
-            logger.println("Zipping files into " + zipFile.getAbsolutePath());
 
+    private File zipFile(String zipFileName, FilePath sourceDirectory) throws IOException, InterruptedException, IllegalArgumentException {
 
+		File zipFile = new File("/tmp/"+ zipFileName);
+		final boolean fileCreated = zipFile.createNewFile();
+		if (!fileCreated) {
+			log("Zip文件已存在，开始覆盖 : " + zipFile.getPath());
+		}
 
+        log("生成Zip文件 : " + zipFile.getAbsolutePath());
+
+        FileOutputStream outputStream = new FileOutputStream(zipFile);
+        try {
             sourceDirectory.zip(
-                    new FileOutputStream(zipFile),
+                    outputStream,
                     new DirScanner.Glob(this.includes, this.excludes)
             );
-
-            if (prefix.isEmpty()) {
-                key = zipFile.getName();
-            } else {
-                key = Util.replaceMacro(prefix, envVars);
-                if (prefix.endsWith("/")) {
-                    key += zipFile.getName();
-                } else {
-                    key += "/" + zipFile.getName();
-                }
-            }
-            logger.println("Uploading zip to s3://" + bucket + "/" + key);
-            PutObjectResult s3result = aws.s3.putObject(bucket, key, zipFile);
-
-            S3Location s3Location = new S3Location();
-            s3Location.setBucket(bucket);
-            s3Location.setKey(key);
-            s3Location.setBundleType(BundleType.Zip);
-            s3Location.setETag(s3result.getETag());
-
-            RevisionLocation revisionLocation = new RevisionLocation();
-            revisionLocation.setRevisionType(RevisionLocationType.S3);
-            revisionLocation.setS3Location(s3Location);
-
-            return revisionLocation;
         } finally {
-            zipFile.delete();
+            outputStream.close();
         }
-    }
-
-    private void registerRevision(AWSClients aws, RevisionLocation revisionLocation) {
-
-        String applicationName = getApplicationNameFromEnv();
-        this.logger.println("Registering revision for application '" + applicationName + "'");
-
-        aws.codedeploy.registerApplicationRevision(
-                new RegisterApplicationRevisionRequest()
-                        .withApplicationName(applicationName)
-                        .withRevision(revisionLocation)
-                        .withDescription("Application revision registered via Jenkins")
-        );
-    }
-
-    private String createDeployment(AWSClients aws, RevisionLocation revisionLocation) throws Exception {
-
-        this.logger.println("Creating deployment with revision at " + revisionLocation);
-
-        CreateDeploymentResult createDeploymentResult = aws.codedeploy.createDeployment(
-                new CreateDeploymentRequest()
-                        .withDeploymentConfigName(getDeploymentConfigFromEnv())
-                        .withDeploymentGroupName(getDeploymentGroupNameFromEnv())
-                        .withApplicationName(getApplicationNameFromEnv())
-                        .withRevision(revisionLocation)
-                        .withDescription("Deployment created by Jenkins")
-        );
-
-        return createDeploymentResult.getDeploymentId();
-    }
-
-    private boolean waitForDeployment(AWSClients aws, String deploymentId) throws InterruptedException {
-
-        if (!this.waitForCompletion) {
-            return true;
-        }
-
-        logger.println("Monitoring deployment with ID " + deploymentId + "...");
-        GetDeploymentRequest deployInfoRequest = new GetDeploymentRequest();
-        deployInfoRequest.setDeploymentId(deploymentId);
-
-        DeploymentInfo deployStatus = aws.codedeploy.getDeployment(deployInfoRequest).getDeploymentInfo();
-
-        long startTimeMillis;
-        if (deployStatus == null || deployStatus.getStartTime() == null) {
-            startTimeMillis = new Date().getTime();
-        } else {
-            startTimeMillis = deployStatus.getStartTime().getTime();
-        }
-
-        boolean success = true;
-        long pollingTimeoutMillis = this.pollingTimeoutSec * 1000L;
-        long pollingFreqMillis = this.pollingFreqSec * 1000L;
-
-        while (deployStatus == null || deployStatus.getCompleteTime() == null) {
-
-            if (deployStatus == null) {
-                logger.println("Deployment status: unknown.");
-            } else {
-                DeploymentOverview overview = deployStatus.getDeploymentOverview();
-                logger.println("Deployment status: " + deployStatus.getStatus() + "; instances: " + overview);
-            }
-
-            deployStatus = aws.codedeploy.getDeployment(deployInfoRequest).getDeploymentInfo();
-            Date now = new Date();
-
-            if (now.getTime() - startTimeMillis >= pollingTimeoutMillis) {
-                this.logger.println("Exceeded maximum polling time of " + pollingTimeoutMillis + " milliseconds.");
-                success = false;
-                break;
-            }
-
-            Thread.sleep(pollingFreqMillis);
-        }
-
-        logger.println("Deployment status: " + deployStatus.getStatus() + "; instances: " + deployStatus.getDeploymentOverview());
-
-        if (!deployStatus.getStatus().equals(DeploymentStatus.Succeeded.toString())) {
-            this.logger.println("Deployment did not succeed. Final status: " + deployStatus.getStatus());
-            success = false;
-        }
-
-        return success;
+        return zipFile;
     }
 
     // Overridden for better type safety.
@@ -473,7 +358,6 @@ public class AWSCodeDeployPublisher extends Publisher {
     }
 
     public BuildStepMonitor getRequiredMonitorService() {
-
         return BuildStepMonitor.STEP;
     }
 
@@ -487,30 +371,35 @@ public class AWSCodeDeployPublisher extends Publisher {
      */
     @Extension // This indicates to Jenkins that this is an implementation of an extension point.
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
-
-        private String externalId;
-        private String awsAccessKey;
-        private String awsSecretKey;
-        private String proxyHost;
-        private int proxyPort;
-
-        /**
+    	public FormValidation doCheckAccount(
+                @QueryParameter String f2cAccessKey,
+                @QueryParameter String f2cSecretKey,
+                @QueryParameter String f2cEndpoint) {
+            if (StringUtils.isEmpty(f2cAccessKey)) {
+                return FormValidation.error("FIT2CLOUD ConsumerKey不能为空！");
+            }
+            if (StringUtils.isEmpty(f2cSecretKey)) {
+                return FormValidation.error("FIT2CLOUD SecretKey不能为空！");
+            }
+            if (StringUtils.isEmpty(f2cEndpoint)) {
+                return FormValidation.error("FIT2CLOUD EndPoint不能为空！");
+            }
+            try {
+                Fit2CloudClient fit2CloudClient = new Fit2CloudClient(f2cAccessKey,f2cSecretKey,f2cEndpoint);
+                fit2CloudClient.getClusters();
+            } catch (Exception e) {
+                return FormValidation.error(e.getMessage());
+            }
+            return FormValidation.ok("验证FIT2CLOUD帐号成功！");
+        }
+    	
+		/**
          * In order to load the persisted global configuration, you have to
          * call load() in the constructor.
          */
         public DescriptorImpl() {
+        	super(AWSCodeDeployPublisher.class);
             load();
-
-            if (externalId == null) {
-                setExternalId(UUID.randomUUID().toString());
-            }
-        }
-
-        public FormValidation doCheckName(@QueryParameter String value)
-                throws IOException, ServletException {
-            if (value.length() == 0)
-                return FormValidation.error("Please add the appropriate values");
-            return FormValidation.ok();
         }
 
         public boolean isApplicable(Class<? extends AbstractProject> aClass) {
@@ -522,217 +411,228 @@ public class AWSCodeDeployPublisher extends Publisher {
          * This human readable name is used in the configuration screen.
          */
         public String getDisplayName() {
-            return "Deploy an application to AWS CodeDeploy";
+            return "FIT2CLOUD 代码部署";
         }
-
+        
         @Override
         public boolean configure(StaplerRequest req, JSONObject formData) throws FormException {
-
-            awsAccessKey = formData.getString("awsAccessKey");
-            awsSecretKey = formData.getString("awsSecretKey");
-            proxyHost = formData.getString("proxyHost");
-            proxyPort = Integer.valueOf(formData.getString("proxyPort"));
-
-            req.bindJSON(this, formData);
+            req.bindParameters(this);
             save();
             return super.configure(req, formData);
         }
 
-        public String getExternalId() {
-            return externalId;
-        }
-
-        public void setExternalId(String externalId) {
-            this.externalId = externalId;
-        }
-
-        public void setProxyHost(String proxyHost) {
-            this.proxyHost = proxyHost;
-        }
-
-        public String getProxyHost() {
-            return proxyHost;
-        }
-
-        public void setProxyPort(int proxyPort) {
-            this.proxyPort = proxyPort;
-        }
-
-        public int getProxyPort() {
-            return proxyPort;
-        }
-
-        public String getAccountId() {
-            return AWSClients.getAccountId(getProxyHost(), getProxyPort());
-        }
-
-        public FormValidation doTestConnection(
-                @QueryParameter String s3bucket,
-                @QueryParameter String applicationName,
-                @QueryParameter String region,
-                @QueryParameter String iamRoleArn,
-                @QueryParameter String proxyHost,
-                @QueryParameter int proxyPort) {
-
-            System.out.println("Testing connection with parameters: "
-                    + s3bucket + ","
-                    + applicationName + ","
-                    + region + ","
-                    + iamRoleArn + ","
-                    + this.externalId + ","
-                    + proxyHost + ","
-                    + proxyPort
-            );
-
-            try {
-                AWSClients awsClients = AWSClients.fromIAMRole(region, iamRoleArn, this.externalId, proxyHost, proxyPort);
-                awsClients.testConnection(s3bucket, applicationName);
-            } catch (Exception e) {
-                return FormValidation.error("Connection test failed with error: " + e.getMessage());
-            }
-
-            return FormValidation.ok("Connection test passed.");
-        }
-
-        public ListBoxModel doFillRegionItems() {
+        public ListBoxModel doFillApplicationRepoIdItems(@QueryParameter String f2cAccessKey,
+                @QueryParameter String f2cSecretKey,
+                @QueryParameter String f2cEndpoint) {
             ListBoxModel items = new ListBoxModel();
-            for (Regions region : AVAILABLE_REGIONS) {
-                items.add(region.toString(), region.getName());
+        	try {
+        		Fit2CloudClient fit2CloudClient = new Fit2CloudClient(f2cAccessKey,f2cSecretKey,f2cEndpoint);
+    			List<ApplicationRepo> list = fit2CloudClient.getApplicationRepoList(null, null);
+    			if(list != null && list.size() > 0) {
+    				for(ApplicationRepo c : list) {
+    					items.add(c.getName(), String.valueOf(c.getId()));
+    				}
+    			}
+        	} catch (Exception e) {
+//            		e.printStackTrace();
+//                return FormValidation.error(e.getMessage());
+        	}
+            return items;
+        }
+        
+        public ListBoxModel doFillApplicationIdItems(@QueryParameter String f2cAccessKey,
+        		@QueryParameter String f2cSecretKey,
+        		@QueryParameter String f2cEndpoint) {
+        	ListBoxModel items = new ListBoxModel();
+    		try {
+    			Fit2CloudClient fit2CloudClient = new Fit2CloudClient(f2cAccessKey,f2cSecretKey,f2cEndpoint);
+    			List<Application> list = fit2CloudClient.getApplicationList(null, null);
+    			if(list != null && list.size() > 0) {
+    				for(Application c : list) {
+    					items.add(c.getName(), String.valueOf(c.getId()));
+    				}
+    			}
+    		} catch (Exception e) {
+//    			e.printStackTrace();
+//                return FormValidation.error(e.getMessage());
+    		}
+        	return items;
+        }
+        
+        public ListBoxModel doFillClusterIdItems(@QueryParameter String f2cAccessKey,
+        		@QueryParameter String f2cSecretKey,
+        		@QueryParameter String f2cEndpoint) {
+        	ListBoxModel items = new ListBoxModel();
+        	try {
+        		Fit2CloudClient fit2CloudClient = new Fit2CloudClient(f2cAccessKey,f2cSecretKey,f2cEndpoint);
+        		List<Cluster> list = fit2CloudClient.getClusters();
+        		if(list != null && list.size() > 0) {
+        			for(Cluster c : list) {
+        				items.add(c.getName(), String.valueOf(c.getId()));
+        			}
+        		}
+        	} catch (Exception e) {
+//        		e.printStackTrace();
+//                return FormValidation.error(e.getMessage());
+        	}
+        	return items;
+        }
+        
+        public ListBoxModel doFillClusterRoleIdItems(@QueryParameter String f2cAccessKey,
+        		@QueryParameter String f2cSecretKey,
+        		@QueryParameter String f2cEndpoint,
+        		@QueryParameter String clusterId) {
+        	ListBoxModel items = new ListBoxModel();
+        	items.add("所有虚机组", "0");
+        	try {
+        		Fit2CloudClient fit2CloudClient = new Fit2CloudClient(f2cAccessKey,f2cSecretKey,f2cEndpoint);
+        		List<ClusterRole> list = fit2CloudClient.getClusterRoles(Long.parseLong(clusterId));
+        		if(list != null && list.size() > 0) {
+        			for(ClusterRole c : list) {
+        				items.add(c.getName(), String.valueOf(c.getId()));
+        			}
+        		}
+        	} catch (Exception e) {
+//        		e.printStackTrace();
+//                return FormValidation.error(e.getMessage());
+        	}
+        	return items;
+        }
+        
+        public ListBoxModel doFillServerIdItems(@QueryParameter String f2cAccessKey,
+        		@QueryParameter String f2cSecretKey,
+        		@QueryParameter String f2cEndpoint,
+        		@QueryParameter String clusterId,
+        		@QueryParameter String clusterRoleId) {
+        	ListBoxModel items = new ListBoxModel();
+        	items.add("所有虚机", "0");
+        	try {
+        		Fit2CloudClient fit2CloudClient = new Fit2CloudClient(f2cAccessKey,f2cSecretKey,f2cEndpoint);
+        		List<Server> list = fit2CloudClient.getServers(Long.parseLong(clusterId), Long.parseLong(clusterRoleId), null, null, null, null, false);
+        		if(list != null && list.size() > 0) {
+        			for(Server c : list) {
+        				items.add(c.getName(), String.valueOf(c.getId()));
+        			}
+        		}
+        	} catch (Exception e) {
+//        		e.printStackTrace();
+//                return FormValidation.error(e.getMessage());
+        	}
+        	return items;
+        }
+        
+        public ListBoxModel doFillContactGroupIdItems(@QueryParameter String f2cAccessKey,
+        		@QueryParameter String f2cSecretKey,
+        		@QueryParameter String f2cEndpoint) {
+        	ListBoxModel items = new ListBoxModel();
+        	try {
+        		Fit2CloudClient fit2CloudClient = new Fit2CloudClient(f2cAccessKey,f2cSecretKey,f2cEndpoint);
+        		List<ContactGroup> list = fit2CloudClient.getContactGroupList(null, null);
+        		if(list != null && list.size() > 0) {
+        			for(ContactGroup c : list) {
+        				items.add(c.getName(), String.valueOf(c.getId()));
+        			}
+        		}
+        	} catch (Exception e) {
+//        		e.printStackTrace();
+//                return FormValidation.error(e.getMessage());
+        	}
+        	return items;
+        }
+        
+        public ListBoxModel doFillDeployStrategyItems() {
+            ListBoxModel items = new ListBoxModel();
+
+            List<Map<String,String>> supportRepoList = Utils.getStrategyList();
+            for(Map<String,String> repoType : supportRepoList){
+                items.add(repoType.get("label"),repoType.get("value"));
             }
             return items;
         }
-
-        public String getAwsSecretKey()
-        {
-            return awsSecretKey;
-        }
-
-        public void setAwsSecretKey(String awsSecretKey)
-        {
-            this.awsSecretKey = awsSecretKey;
-        }
-
-        public String getAwsAccessKey()
-        {
-            return awsAccessKey;
-        }
-
-        public void setAwsAccessKey(String awsAccessKey)
-        {
-            this.awsAccessKey = awsAccessKey;
-        }
-
+        
     }
 
-    public String getApplicationName() {
-        return applicationName;
-    }
+	public String getF2cEndpoint() {
+		return f2cEndpoint;
+	}
 
-    public String getDeploymentGroupName() {
-        return deploymentGroupName;
-    }
+	public String getF2cAccessKey() {
+		return f2cAccessKey;
+	}
 
-    public String getDeploymentConfig() {
-        return deploymentConfig;
-    }
+	public String getF2cSecretKey() {
+		return f2cSecretKey;
+	}
 
-    public String getS3bucket() {
-        return s3bucket;
-    }
+	public Long getApplicationRepoId() {
+		return applicationRepoId;
+	}
 
-    public String getS3prefix() {
-        return s3prefix;
-    }
+	public Long getApplicationId() {
+		return applicationId;
+	}
 
-    public Long getPollingTimeoutSec() {
-        return pollingTimeoutSec;
-    }
+	public String getApplicationVersion() {
+		return applicationVersion;
+	}
 
-    public String getIamRoleArn() {
-        return iamRoleArn;
-    }
+	public String getIncludes() {
+		return includes;
+	}
 
-    public String getAwsAccessKey() {
-        return awsAccessKey;
-    }
+	public String getExcludes() {
+		return excludes;
+	}
 
-    public String getAwsSecretKey() {
-        return awsSecretKey;
-    }
+	public String getNexusGroupId() {
+		return nexusGroupId;
+	}
 
-    public Long getPollingFreqSec() {
-        return pollingFreqSec;
-    }
+	public String getNexusArtifactId() {
+		return nexusArtifactId;
+	}
 
-    public String getExternalId() {
-        return externalId;
-    }
+	public boolean isWaitForCompletion() {
+		return waitForCompletion;
+	}
 
-    public String getDeploymentMethod() {
-        return deploymentMethod;
-    }
+	public Long getPollingTimeoutSec() {
+		return pollingTimeoutSec;
+	}
 
-    public String getVersionFileName() {
-        return versionFileName;
-    }
+	public Long getPollingFreqSec() {
+		return pollingFreqSec;
+	}
 
-    public boolean getWaitForCompletion() {
-        return waitForCompletion;
-    }
+	public Long getClusterId() {
+		return clusterId;
+	}
 
-    public boolean getDeploymentGroupAppspec() {
-        return deploymentGroupAppspec;
-    }
+	public Long getClusterRoleId() {
+		return clusterRoleId;
+	}
 
-    public String getCredentials() {
-        return credentials;
-    }
+	public Long getServerId() {
+		return serverId;
+	}
 
-    public String getIncludes() {
-        return includes;
-    }
+	public Long getContactGroupId() {
+		return contactGroupId;
+	}
 
-    public String getExcludes() {
-        return excludes;
-    }
+	public String getDeployStrategy() {
+		return deployStrategy;
+	}
 
-    public String getSubdirectory() {
-        return subdirectory;
-    }
+	public boolean isAutoDeploy() {
+		return autoDeploy;
+	}
 
-    public String getRegion() {
-        return region;
-    }
-
-    public String getProxyHost() {
-        return proxyHost;
-    }
-
-    public int getProxyPort() {
-        return proxyPort;
-    }
-
-    public String getApplicationNameFromEnv() {
-        return Util.replaceMacro(this.applicationName, envVars);
-    }
-
-    public String getDeploymentGroupNameFromEnv() {
-        return Util.replaceMacro(this.deploymentGroupName, envVars);
-    }
-
-    public String getDeploymentConfigFromEnv() {
-        return Util.replaceMacro(this.deploymentConfig, envVars);
-    }
-
-    public String getS3BucketFromEnv() {
-        return Util.replaceMacro(this.s3bucket, envVars);
-    }
-
-    public String getS3PrefixFromEnv() {
-        return Util.replaceMacro(this.s3prefix, envVars);
-    }
-
-    public String getSubdirectoryFromEnv() {
-        return Util.replaceMacro(this.subdirectory, envVars);
-    }
+	public String getDescription() {
+		return description;
+	}
+	
+	private void log(String msg) {
+		logger.println(LOG_PREFIX+msg);
+	}
 }

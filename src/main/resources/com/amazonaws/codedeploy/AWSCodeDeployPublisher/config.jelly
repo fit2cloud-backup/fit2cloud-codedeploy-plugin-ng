@@ -1,66 +1,82 @@
+<?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
-    <f:optionalBlock title="Override Global FIT2CLOUD API Info." field="overrideAPIInfo" checked="${instance.isOverrideAPIInfo()}" inline="true">
-        <f:description>
-            此处需要单独配置 FIT2CLOUD API 信息，否则默认使用系统定义 FIT2CLOUD API 信息
-        </f:description>
-        <f:entry title="FIT2CLOUD API Endpoint" field="f2cEndpoint">
-            <f:textbox default="https://console.fit2cloud.com:8443"/>
-        </f:entry>
-        <f:entry title="FIT2CLOUD API AccessKey" field="f2cAccessKey">
-            <f:textbox default="xxxxx"/>
-        </f:entry>
-        <f:entry title="FIT2CLOUD API SecretKey" field="f2cSecretKey">
-            <f:textbox default="xxxxx"/>
-        </f:entry>
-    </f:optionalBlock>
-    <f:entry title="应用名称" field="applicationName">
-        <f:select />
+    <f:entry title="FIT2CLOUD API Endpoint" field="f2cEndpoint">
+        <f:textbox default="https://console.fit2cloud.com:8443/rest/"/>
     </f:entry>
-    <f:entry title="应用版本" field="applicationVersion">
-        <f:textbox default="v1.0-${BUILD_TIMESTAMP}" />
+    <f:entry title="FIT2CLOUD API AccessKey" field="f2cAccessKey">
+        <f:textbox default="YOUR_CONSUMER_KEY"/>
     </f:entry>
-    <f:entry title="仓库名称" field="applicationRepoName">
-        <f:description>
-            仓库需要先在 FIT2CLOUD 控制台中注册
-        </f:description>
-        <f:select />
+    <f:entry title="FIT2CLOUD API SecretKey" field="f2cSecretKey">
+        <f:textbox default="YOUR_SECRET_KEY"/>
     </f:entry>
-    <f:entry title="Include Files" field="includes">
-        <f:textarea default="**" />
-    </f:entry>
-    <f:entry title="Exclude Files" field="excludes">
-        <f:textarea default="*.class" />
-    </f:entry>
-
-
-    <f:radioBlock title="打包上传至 Nexus" name="deployToNexus" value="true" checked="${instance.getDeploymentMethod() == 'onlyRevision'}" inline="true">
-        <f:optionalBlock title="自定义 GroupId，ArtifactId" field="customNexus" checked="${instance.getWaitForCompletion()}" inline="true">
-            <f:entry title="GroupId" field="nexusGroupId">
-                <f:textbox default="com.fit2cloud"/>
+    <f:validateButton
+        			title="验证账户" progress="验证中..."
+        			method="checkAccount" with="f2cAccessKey,f2cSecretKey,f2cEndpoint" />
+    
+    <f:section title="CodeDeploy Zip文件设置">
+        
+		    <f:entry title="仓库名称" field="applicationRepoId">
+		        <f:select />
+		    </f:entry>
+		    <f:entry title="应用名称" field="applicationId">
+		        <f:select />
+		    </f:entry>
+		    <f:entry title="应用版本" field="applicationVersion">
+		        <f:textbox default="V1.0-${BUILD_NUMBER}" />
+		    </f:entry>
+		    <f:entry title="Include Files" field="includes">
+		        <f:textarea default="**" />
+		    </f:entry>
+		    <f:entry title="Exclude Files" field="excludes">
+		        <f:textarea default="*.class" />
+		    </f:entry>
+		    <f:entry title="备注" field="description">
+		        <f:textbox />
+		    </f:entry>
+    </f:section>
+    
+    <f:section title="Zip文件上传设置">
+	    <f:radioBlock title="上传至 Nexus" name="artifactType" value="nexus" inline="true" checked="true">
+	        <f:entry title="GroupId" field="nexusGroupId">
+	            <f:textbox default="com.fit2cloud"/>
+	        </f:entry>
+	        <f:entry title="ArtifactId" field="nexusArtifactId">
+	            <f:textbox default="test"/>
+	        </f:entry>
+	        <f:entry title="NexusArtifactVersion" field="nexusArtifactVersion">
+	            <f:textbox default="1.0"/>
+	        </f:entry>
+	    </f:radioBlock>
+    </f:section>
+    
+    <f:section title="代码部署设置">
+    	<f:optionalBlock title="触发自动部署" field="autoDeploy" checked="${instance.isAutoDeploy()}" inline="true">
+	        <f:entry title="目标集群" field="clusterId">
+		        <f:select />
+		    </f:entry>
+		    <f:entry title="目标虚机组" field="clusterRoleId">
+		        <f:select />
+		    </f:entry>
+		    <f:entry title="目标虚机" field="serverId">
+		        <f:select />
+		    </f:entry>
+		    <f:entry title="部署策略" field="deployStrategy">
+              	<f:select />
+          	</f:entry>
+          	<f:entry title="通知组Id" field="contactGroupId">
+              	<f:select />
             </f:entry>
-            <f:entry title="ArtifactId" field="nexusArtifactId">
-                <f:textbox default="xxx"/>
-            </f:entry>
-        </f:optionalBlock>
-    </f:radioBlock>
-
-    <f:radioBlock title="打包上传至阿里云 OSS" name="deployToOSS" value="true" checked="${instance.getDeploymentMethod() == 'onlyRevision'}" inline="true">
-    </f:radioBlock>
-
-    <f:radioBlock title="打包上传至亚马逊 S3" name="deployToOSS" value="true" checked="${instance.getDeploymentMethod() == 'onlyRevision'}" inline="true">
-    </f:radioBlock>
-
-    <f:checkbox title="触发自动部署" name="deploymentMethod" value="deploy" checked="${instance.getDeploymentMethod() == 'deploy'}" inline="true">
-        <f:description>
-            Register the new revision and deploy it to the specified CodeDeploy deployment group.
-        </f:description>
-        <f:optionalBlock title="等待部署成功？" field="waitForCompletion" checked="${instance.getWaitForCompletion()}" inline="true">
-            <f:entry title="Polling Timeout (s)" field="pollingTimeoutSec">
-                <f:textbox default="600"/>
-            </f:entry>
-            <f:entry title="Polling Frequency (s)" field="pollingFreqSec">
-                <f:textbox default="15"/>
-            </f:entry>
-        </f:optionalBlock>
-    </f:checkbox>
+		    
+	        <f:optionalBlock title="等待部署成功？" field="waitForCompletion" checked="true" inline="true">
+	            <f:entry title="查询超时时间 (秒)" field="pollingTimeoutSec">
+	                <f:textbox default="600"/>
+	            </f:entry>
+	            <f:entry title="查询间隔时间 (秒)" field="pollingFreqSec">
+	                <f:textbox default="15"/>
+	            </f:entry>
+	        </f:optionalBlock>
+    	</f:optionalBlock>
+    
+    </f:section>
+    
 </j:jelly>
