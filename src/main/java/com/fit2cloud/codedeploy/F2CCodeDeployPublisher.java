@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
@@ -32,9 +31,7 @@ import hudson.Launcher;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
-import hudson.model.Computer;
 import hudson.model.Result;
-import hudson.slaves.SlaveComputer;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
 import hudson.tasks.Publisher;
@@ -139,17 +136,6 @@ public class F2CCodeDeployPublisher extends Publisher {
         
         FilePath workspace = build.getWorkspace();
         // ---------------- 开始校验各项输入 ----------------
-        String appspecPath = workspace + SYSTEM_FILE_SEPARATOR + appspecFilePath;
-        if(appspecPath.contains("\\\\")) {
-        	appspecPath = appspecPath.replaceAll("/", "\\\\");
-        }
-        File appspec = new File(appspecPath);
-        log("appspec 文件路径 : "+ appspecPath);
-        if (!appspec.exists()) {
-        	log("没有找到对应的appspec.yml文件！");
-        	return false;
-        }
-        
         String newAppVersion = Utils.replaceTokens(build, listener, this.applicationVersion);
 
 		final Fit2CloudClient fit2CloudClient = new Fit2CloudClient(this.f2cAccessKey, this.f2cSecretKey, this.f2cEndpoint);
@@ -341,25 +327,16 @@ public class F2CCodeDeployPublisher extends Publisher {
 
 
     private File zipFile(String zipFileName, FilePath sourceDirectory) throws IOException, InterruptedException, IllegalArgumentException {
-    	File dest = null;
+    	FilePath appspecFp = new FilePath(sourceDirectory, appspecFilePath);
     	
-    	String appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + appspecFilePath;
-    	if(appspecPath.contains("\\\\")) {
-        	appspecPath = appspecPath.replaceAll("/", "\\\\");
-        }
-    	log("appspecPath 1 ::::: "+appspecPath);
-        File appspec = new File(appspecPath);
-        if (appspec.exists()) {
-    		appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + "appspec.yml";
-    		if(appspecPath.contains("\\\\")) {
-            	appspecPath = appspecPath.replaceAll("/", "\\\\");
-            }
-    		log("appspecPath 2 ::::: "+appspecPath);
+    	log("指定 appspecPath ::::: "+appspecFp.toURI().getPath());
+        if (appspecFp.exists()) {
     		if(!"appspec.yml".equals(appspecFilePath)) {
-    			dest = new File(appspecPath);
-    			FileUtils.copyFile(appspec, dest);
+    			FilePath appspecDestFP = new FilePath(sourceDirectory, "appspec.yml");
+    			log("目标 appspecPath  ::::: "+appspecDestFP.toURI().getPath());
+    			appspecFp.copyTo(appspecDestFP);
     		}
-            log("添加appspec文件 : " + appspec.getAbsolutePath());
+            log("成功添加appspec文件");
         }else {
             throw new IllegalArgumentException("没有找到对应的appspec.yml文件！" );
         }
