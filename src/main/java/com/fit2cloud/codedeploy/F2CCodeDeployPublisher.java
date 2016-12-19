@@ -136,23 +136,11 @@ public class F2CCodeDeployPublisher extends Publisher {
             log("Skipping CodeDeploy publisher as build failed");
             return true;
         }
-        FilePath workspace = null;
-        try {
-            if(Computer.currentComputer() instanceof SlaveComputer) {
-                workspace = PluginUtils.getProjectWorkspaceOnMaster(build.getProject(), logger);
-            }else {
-                workspace = build.getWorkspace();
-            }
-            log("当前 workspace :: "+workspace);
-        } catch (Exception e) {
-            e.printStackTrace();
-            log("获取 workspace 失败 :: "+e.getMessage());
-            return false;
-        }
         
+        FilePath workspace = build.getWorkspace();
         // ---------------- 开始校验各项输入 ----------------
         String appspecPath = workspace + SYSTEM_FILE_SEPARATOR + appspecFilePath;
-        if(appspecPath.contains("\\")) {
+        if(appspecPath.contains("\\\\")) {
         	appspecPath = appspecPath.replaceAll("/", "\\\\");
         }
         File appspec = new File(appspecPath);
@@ -356,14 +344,14 @@ public class F2CCodeDeployPublisher extends Publisher {
     	File dest = null;
     	
     	String appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + appspecFilePath;
-    	if(appspecPath.contains("\\")) {
+    	if(appspecPath.contains("\\\\")) {
         	appspecPath = appspecPath.replaceAll("/", "\\\\");
         }
     	log("appspecPath 1 ::::: "+appspecPath);
         File appspec = new File(appspecPath);
         if (appspec.exists()) {
     		appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + "appspec.yml";
-    		if(appspecPath.contains("\\")) {
+    		if(appspecPath.contains("\\\\")) {
             	appspecPath = appspecPath.replaceAll("/", "\\\\");
             }
     		log("appspecPath 2 ::::: "+appspecPath);
