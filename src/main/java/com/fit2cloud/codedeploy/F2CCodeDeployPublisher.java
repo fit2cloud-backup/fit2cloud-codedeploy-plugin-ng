@@ -47,6 +47,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     public static final long      DEFAULT_POLLING_FREQUENCY_SECONDS = 15;
     public static final String    ROLE_SESSION_NAME                 = "jenkins-codedeploy-plugin";
     private static final String SYSTEM_FILE_SEPARATOR = "/";
+    private static final String SYSTEM_OS = System.getProperty("os.name").toLowerCase().startsWith("win") ? "windows" : "linux";
     
     private final String f2cEndpoint;
     private final String f2cAccessKey;
@@ -136,7 +137,9 @@ public class F2CCodeDeployPublisher extends Publisher {
         // ---------------- 开始校验各项输入 ----------------
         final FilePath workspace = build.getWorkspace();
         String appspecPath = workspace + SYSTEM_FILE_SEPARATOR + appspecFilePath;
-        appspecPath = appspecPath.replaceAll("\\\\", SYSTEM_FILE_SEPARATOR);
+        if(SYSTEM_OS.equals("windows")) {
+        	appspecPath = appspecPath.replaceAll("/", "\\\\");
+        }
         File appspec = new File(appspecPath);
         log("appspec 文件路径 : "+ appspecPath);
         if (!appspec.exists()) {
@@ -329,13 +332,21 @@ public class F2CCodeDeployPublisher extends Publisher {
     	File dest = null;
     	
     	String appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + appspecFilePath;
-        appspecPath = appspecPath.replaceAll("\\\\", SYSTEM_FILE_SEPARATOR);
+    	if(SYSTEM_OS.equals("windows")) {
+        	appspecPath = appspecPath.replaceAll("/", "\\\\");
+        }
+    	log("appspecPath 1 ::::: "+appspecPath);
         File appspec = new File(appspecPath);
         if (appspec.exists()) {
     		appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + "appspec.yml";
-    		appspecPath = appspecPath.replaceAll("\\\\", SYSTEM_FILE_SEPARATOR);
-    		dest = new File(appspecPath);
-    		FileUtils.copyFile(appspec, dest);
+    		if(SYSTEM_OS.equals("windows")) {
+    			appspecPath = appspecPath.replaceAll("/", "\\\\");
+    		}
+    		log("appspecPath 2 ::::: "+appspecPath);
+    		if(!"appspec.yml".equals(appspecFilePath)) {
+    			dest = new File(appspecPath);
+    			FileUtils.copyFile(appspec, dest);
+    		}
             log("添加appspec文件 : " + appspec.getAbsolutePath());
         }else {
             throw new IllegalArgumentException("没有找到对应的appspec.yml文件！" );
