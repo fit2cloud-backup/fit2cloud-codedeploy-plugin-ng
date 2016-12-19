@@ -332,12 +332,10 @@ public class F2CCodeDeployPublisher extends Publisher {
         appspecPath = appspecPath.replaceAll("\\\\", SYSTEM_FILE_SEPARATOR);
         File appspec = new File(appspecPath);
         if (appspec.exists()) {
-        	if(!appspecFilePath.equalsIgnoreCase("appspec.yml")) {
-        		appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + "appspec.yml";
-        		appspecPath = appspecPath.replaceAll("\\", SYSTEM_FILE_SEPARATOR);
-        		dest = new File(appspecPath);
-        		FileUtils.copyFile(appspec, dest);
-        	}
+    		appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + "appspec.yml";
+    		appspecPath = appspecPath.replaceAll("\\\\", SYSTEM_FILE_SEPARATOR);
+    		dest = new File(appspecPath);
+    		FileUtils.copyFile(appspec, dest);
             log("添加appspec文件 : " + appspec.getAbsolutePath());
         }else {
             throw new IllegalArgumentException("没有找到对应的appspec.yml文件！" );
