@@ -137,7 +137,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         // ---------------- 开始校验各项输入 ----------------
         final FilePath workspace = build.getWorkspace();
         String appspecPath = workspace + SYSTEM_FILE_SEPARATOR + appspecFilePath;
-        if(SYSTEM_OS.equals("windows")) {
+        if(appspecPath.contains("\\")) {
         	appspecPath = appspecPath.replaceAll("/", "\\\\");
         }
         File appspec = new File(appspecPath);
@@ -332,16 +332,16 @@ public class F2CCodeDeployPublisher extends Publisher {
     	File dest = null;
     	
     	String appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + appspecFilePath;
-    	if(SYSTEM_OS.equals("windows")) {
+    	if(appspecPath.contains("\\")) {
         	appspecPath = appspecPath.replaceAll("/", "\\\\");
         }
     	log("appspecPath 1 ::::: "+appspecPath);
         File appspec = new File(appspecPath);
         if (appspec.exists()) {
     		appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + "appspec.yml";
-    		if(SYSTEM_OS.equals("windows")) {
-    			appspecPath = appspecPath.replaceAll("/", "\\\\");
-    		}
+    		if(appspecPath.contains("\\")) {
+            	appspecPath = appspecPath.replaceAll("/", "\\\\");
+            }
     		log("appspecPath 2 ::::: "+appspecPath);
     		if(!"appspec.yml".equals(appspecFilePath)) {
     			dest = new File(appspecPath);
