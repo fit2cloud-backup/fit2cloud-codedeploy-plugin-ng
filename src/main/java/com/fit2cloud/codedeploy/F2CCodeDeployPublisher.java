@@ -136,7 +136,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         // ---------------- 开始校验各项输入 ----------------
         final FilePath workspace = build.getWorkspace();
         String appspecPath = workspace + SYSTEM_FILE_SEPARATOR + appspecFilePath;
-        appspecPath = appspecPath.replaceAll("\\", SYSTEM_FILE_SEPARATOR);
+        appspecPath = appspecPath.replaceAll("\\\\", SYSTEM_FILE_SEPARATOR);
         File appspec = new File(appspecPath);
         log("appspec 文件路径 : "+ appspecPath);
         if (!appspec.exists()) {
@@ -329,7 +329,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     	File dest = null;
     	
     	String appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + appspecFilePath;
-        appspecPath = appspecPath.replaceAll("\\", SYSTEM_FILE_SEPARATOR);
+        appspecPath = appspecPath.replaceAll("\\\\", SYSTEM_FILE_SEPARATOR);
         File appspec = new File(appspecPath);
         if (appspec.exists()) {
         	if(!appspecFilePath.equalsIgnoreCase("appspec.yml")) {
