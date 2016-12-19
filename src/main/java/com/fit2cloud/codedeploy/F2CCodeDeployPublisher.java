@@ -32,7 +32,9 @@ import hudson.Launcher;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
+import hudson.model.Computer;
 import hudson.model.Result;
+import hudson.slaves.SlaveComputer;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
 import hudson.tasks.Publisher;
@@ -134,8 +136,21 @@ public class F2CCodeDeployPublisher extends Publisher {
             log("Skipping CodeDeploy publisher as build failed");
             return true;
         }
+        FilePath workspace = null;
+        try {
+            if(Computer.currentComputer() instanceof SlaveComputer) {
+                workspace = PluginUtils.getProjectWorkspaceOnMaster(build.getProject(), logger);
+            }else {
+                workspace = build.getWorkspace();
+            }
+            log("当前 workspace :: "+workspace);
+        } catch (Exception e) {
+            e.printStackTrace();
+            log("获取 workspace 失败 :: "+e.getMessage());
+            return false;
+        }
+        
         // ---------------- 开始校验各项输入 ----------------
-        final FilePath workspace = build.getWorkspace();
         String appspecPath = workspace + SYSTEM_FILE_SEPARATOR + appspecFilePath;
         if(appspecPath.contains("\\")) {
         	appspecPath = appspecPath.replaceAll("/", "\\\\");
@@ -153,6 +168,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 		
 		ApplicationRepo repo = null;
 		try {
+			log("开始校验应用仓库 ...");
 			repo = fit2CloudClient.getApplicationRepo(applicationRepoId);
 		} catch (Fit2CloudException e) {
 		} finally {
@@ -161,9 +177,11 @@ public class F2CCodeDeployPublisher extends Publisher {
 				return false;
 			}
 		}
+		log("应用仓库 ... OK");
 		
 		Application app = null;
 		try {
+			log("开始校验应用 ...");
 			app = fit2CloudClient.getApplication(applicationId);
 		} catch (Fit2CloudException e) {
 		} finally {
@@ -172,6 +190,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 				return false;
 			}
 		}
+		log("应用 ... OK");
 		
 		String repoType = repo.getType();
 		if(!artifactType.equalsIgnoreCase(repoType)) {
@@ -180,23 +199,28 @@ public class F2CCodeDeployPublisher extends Publisher {
 		}
 		
 		Cluster cluster = null;
-		try {
-			cluster = fit2CloudClient.getCluster(clusterId);
-		} catch (Fit2CloudException e) {
-		} finally {
-			if(cluster == null) {
-				log("目标集群无效,无法注册到FIT2CLOUD.");
-				return false;
-			}
-		}
-		
 		String clusterRoleName = null;
-		try {
-			ClusterRole clusterRole = fit2CloudClient.getClusterRole(clusterRoleId);
-			if(clusterRole != null) {
-				clusterRoleName = clusterRole.getName();
+		if(autoDeploy) {
+			try {
+				log("开始校验集群 ...");
+				cluster = fit2CloudClient.getCluster(clusterId);
+			} catch (Fit2CloudException e) {
+			} finally {
+				if(cluster == null) {
+					log("目标集群无效,无法注册到FIT2CLOUD.");
+					return false;
+				}
 			}
-		} catch (Fit2CloudException e) {
+			log("集群 ... OK");
+			
+			try {
+				log("获取虚机组信息 ...");
+				ClusterRole clusterRole = fit2CloudClient.getClusterRole(clusterRoleId);
+				if(clusterRole != null) {
+					clusterRoleName = clusterRole.getName();
+				}
+			} catch (Fit2CloudException e) {
+			}
 		}
 		// ---------------- 结束校验各项输入 ----------------
 		
