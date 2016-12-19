@@ -30,6 +30,9 @@
 		    <f:entry title="Exclude Files" field="excludes">
 		        <f:textarea default="*.class" />
 		    </f:entry>
+		    <f:entry title="appspec文件路径" field="appspecFilePath">
+		        <f:textbox />
+		    </f:entry>
 		    <f:entry title="备注" field="description">
 		        <f:textbox />
 		    </f:entry>

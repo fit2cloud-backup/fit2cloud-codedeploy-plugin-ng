@@ -1,18 +1,4 @@
-/*
- * Copyright 2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- *  http://aws.amazon.com/apache2.0
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
- */
-package com.amazonaws.codedeploy;
+package com.fit2cloud.codedeploy;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -22,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
@@ -54,19 +41,12 @@ import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import net.sf.json.JSONObject;
 
-/**
- * The AWS CodeDeploy Publisher is a post-build plugin that adds the ability to start a new CodeDeploy deployment
- * with the project's workspace as the application revision.
- * <p/>
- * To configure, users must create an IAM role that allows "S3" and "CodeDeploy" actions and must be assumable by
- * the globally configured keys. This allows the plugin to get temporary credentials instead of requiring permanent
- * credentials to be configured for each project.
- */
-public class AWSCodeDeployPublisher extends Publisher {
+public class F2CCodeDeployPublisher extends Publisher {
     private static final String LOG_PREFIX = "[FIT2CLOUD 代码部署]";
 	public static final long      DEFAULT_TIMEOUT_SECONDS           = 900;
     public static final long      DEFAULT_POLLING_FREQUENCY_SECONDS = 15;
     public static final String    ROLE_SESSION_NAME                 = "jenkins-codedeploy-plugin";
+    private static final String SYSTEM_FILE_SEPARATOR = "/";
     
     private final String f2cEndpoint;
     private final String f2cAccessKey;
@@ -78,6 +58,7 @@ public class AWSCodeDeployPublisher extends Publisher {
 
     private final String includes;
     private final String excludes;
+    private final String appspecFilePath;
     private final String description;
     
     private final String artifactType;
@@ -99,11 +80,11 @@ public class AWSCodeDeployPublisher extends Publisher {
     
 	// Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
-    public AWSCodeDeployPublisher(String f2cEndpoint, String f2cAccessKey, String f2cSecretKey, Long applicationRepoId,
+    public F2CCodeDeployPublisher(String f2cEndpoint, String f2cAccessKey, String f2cSecretKey, Long applicationRepoId,
     		Long applicationId, String applicationVersion, String includes, String excludes, Boolean autoDeploy,
     		String artifactType, String nexusGroupId, String nexusArtifactId, String nexusArtifactVersion, Boolean waitForCompletion, Long pollingTimeoutSec,
     		Long pollingFreqSec, Long clusterId, Long clusterRoleId, Long serverId, Long contactGroupId,
-    		String deployStrategy, String description) {
+    		String deployStrategy, String description, String appspecFilePath) {
 		this.f2cEndpoint = f2cEndpoint;
 		this.f2cAccessKey = f2cAccessKey;
 		this.f2cSecretKey = f2cSecretKey;
@@ -123,15 +104,16 @@ public class AWSCodeDeployPublisher extends Publisher {
 		this.artifactType = StringUtils.isBlank(artifactType) ? ArtifactType.NEXUS : artifactType;
 		this.autoDeploy = autoDeploy == null ? false : autoDeploy;
 		this.description = description;
+		this.appspecFilePath = StringUtils.isBlank(appspecFilePath) ? "appspec.yml" : appspecFilePath;
 		
 		if (waitForCompletion != null && waitForCompletion) {
             this.waitForCompletion = true;
-            if (pollingTimeoutSec == null) {
+            if (pollingTimeoutSec == null || pollingTimeoutSec <= 0) {
                 this.pollingTimeoutSec = DEFAULT_TIMEOUT_SECONDS;
             } else {
                 this.pollingTimeoutSec = pollingTimeoutSec;
             }
-            if (pollingFreqSec == null) {
+            if (pollingFreqSec == null|| pollingFreqSec <= 0) {
                 this.pollingFreqSec = DEFAULT_POLLING_FREQUENCY_SECONDS;
             } else {
                 this.pollingFreqSec = pollingFreqSec;
@@ -150,6 +132,16 @@ public class AWSCodeDeployPublisher extends Publisher {
         if (buildFailed) {
             log("Skipping CodeDeploy publisher as build failed");
             return true;
+        }
+        // ---------------- 开始校验各项输入 ----------------
+        final FilePath workspace = build.getWorkspace();
+        String appspecPath = workspace + SYSTEM_FILE_SEPARATOR + appspecFilePath;
+        appspecPath = appspecPath.replaceAll("\\", SYSTEM_FILE_SEPARATOR);
+        File appspec = new File(appspecPath);
+        log("appspec 文件路径 : "+ appspecPath);
+        if (!appspec.exists()) {
+        	log("没有找到对应的appspec.yml文件！");
+        	return false;
         }
         
         String newAppVersion = Utils.replaceTokens(build, listener, this.applicationVersion);
@@ -203,13 +195,14 @@ public class AWSCodeDeployPublisher extends Publisher {
 			}
 		} catch (Fit2CloudException e) {
 		}
+		// ---------------- 结束校验各项输入 ----------------
 		
+		// ---------------- 开始生成zip包并上传 ----------------
 		int buildNumber = build.getNumber();
 		String prjName = build.getProject().getName();
 		File zipFile = null;
 		String newAddress = null;
         try {
-        	final FilePath workspace = build.getWorkspace();
         	String zipFileName = prjName+"-"+buildNumber+".zip";
         	zipFile = zipFile(zipFileName, workspace);
         	
@@ -246,6 +239,9 @@ public class AWSCodeDeployPublisher extends Publisher {
         		}
         	}
         }
+        // ---------------- 结束生成zip包并上传 ----------------
+        
+        // ---------------- 开始注册应用版本 ----------------
         ApplicationRevision applicationRevision = null;
 		try {
 			applicationRevision = fit2CloudClient.addApplicationRevision(newAppVersion,description,app.getName(),repo.getName(),newAddress,null);
@@ -256,7 +252,9 @@ public class AWSCodeDeployPublisher extends Publisher {
             e.printStackTrace(this.logger);
             return false;
 		}
+		// ---------------- 结束注册应用版本 ----------------
 		
+		// ---------------- 开始自动部署应用 ----------------
 		if(autoDeploy){
             try {
                 log("开始自动部署新注册的应用版本...");
@@ -322,13 +320,29 @@ public class AWSCodeDeployPublisher extends Publisher {
                 return false;
             }
         }
+		// ---------------- 结束自动部署应用 ----------------
         return true;
     }
 
 
     private File zipFile(String zipFileName, FilePath sourceDirectory) throws IOException, InterruptedException, IllegalArgumentException {
-
-		File zipFile = new File("/tmp/"+ zipFileName);
+    	File dest = null;
+    	
+    	String appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + appspecFilePath;
+        appspecPath = appspecPath.replaceAll("\\", SYSTEM_FILE_SEPARATOR);
+        File appspec = new File(appspecPath);
+        if (appspec.exists()) {
+        	if(!appspecFilePath.equalsIgnoreCase("appspec.yml")) {
+        		appspecPath = sourceDirectory + SYSTEM_FILE_SEPARATOR + "appspec.yml";
+        		appspecPath = appspecPath.replaceAll("\\", SYSTEM_FILE_SEPARATOR);
+        		dest = new File(appspecPath);
+        		FileUtils.copyFile(appspec, dest);
+        	}
+            log("添加appspec文件 : " + appspec.getAbsolutePath());
+        }else {
+            throw new IllegalArgumentException("没有找到对应的appspec.yml文件！" );
+        }
+        File zipFile = new File("/tmp/"+ zipFileName);
 		final boolean fileCreated = zipFile.createNewFile();
 		if (!fileCreated) {
 			log("Zip文件已存在，开始覆盖 : " + zipFile.getPath());
@@ -361,14 +375,6 @@ public class AWSCodeDeployPublisher extends Publisher {
         return BuildStepMonitor.STEP;
     }
 
-    /**
-     * Descriptor for {@link AWSCodeDeployPublisher}. Used as a singleton.
-     * The class is marked as public so that it can be accessed from views.
-     * <p/>
-     * <p/>
-     * See <tt>src/main/resources/com/amazonaws/codedeploy/AWSCodeDeployPublisher/*.jelly</tt>
-     * for the actual HTML fragment for the configuration screen.
-     */
     @Extension // This indicates to Jenkins that this is an implementation of an extension point.
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
     	public FormValidation doCheckAccount(
@@ -398,7 +404,7 @@ public class AWSCodeDeployPublisher extends Publisher {
          * call load() in the constructor.
          */
         public DescriptorImpl() {
-        	super(AWSCodeDeployPublisher.class);
+        	super(F2CCodeDeployPublisher.class);
             load();
         }
 
@@ -632,6 +638,18 @@ public class AWSCodeDeployPublisher extends Publisher {
 		return description;
 	}
 	
+	public String getAppspecFilePath() {
+		return appspecFilePath;
+	}
+
+	public String getArtifactType() {
+		return artifactType;
+	}
+
+	public String getNexusArtifactVersion() {
+		return nexusArtifactVersion;
+	}
+
 	private void log(String msg) {
 		logger.println(LOG_PREFIX+msg);
 	}

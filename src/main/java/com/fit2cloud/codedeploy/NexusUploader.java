@@ -1,4 +1,4 @@
-package com.amazonaws.codedeploy;
+package com.fit2cloud.codedeploy;
 import java.io.File;
 
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;

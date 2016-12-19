@@ -4,7 +4,7 @@ FIT2CLOUD CodeDeploy Jenkins Plugin
 Development
 ----------
 
-- Typical maven project, if you find it too slow to resolv the dependencies, try add Aliyun Nexus mirror to you ~/.m2/settings.xml
+- Typical maven project, if you find it too slow to resolve the dependencies, try add Aliyun Nexus mirror to you ~/.m2/settings.xml
 
 ```
  <mirror>

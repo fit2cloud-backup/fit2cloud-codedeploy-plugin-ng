@@ -1,4 +1,4 @@
-package com.amazonaws.codedeploy;
+package com.fit2cloud.codedeploy;
 
 public class ArtifactType {
 	public static final String NEXUS = "nexus";

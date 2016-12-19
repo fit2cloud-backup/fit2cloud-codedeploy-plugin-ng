@@ -1,4 +1,4 @@
-package com.amazonaws.codedeploy;
+package com.fit2cloud.codedeploy;
 
 import com.fit2cloud.sdk.model.ApplicationDeployPolicyType;
 import hudson.Util;
