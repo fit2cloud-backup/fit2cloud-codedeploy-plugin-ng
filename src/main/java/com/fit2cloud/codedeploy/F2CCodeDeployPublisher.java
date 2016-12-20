@@ -350,9 +350,10 @@ public class F2CCodeDeployPublisher extends Publisher {
 
         FileOutputStream outputStream = new FileOutputStream(zipFile);
         try {
+        	String allIncludes = includes + ",appspec.yml";
             sourceDirectory.zip(
                     outputStream,
-                    new DirScanner.Glob(this.includes, this.excludes)
+                    new DirScanner.Glob(allIncludes, this.excludes)
             );
         } finally {
             outputStream.close();
