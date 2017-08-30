@@ -47,11 +47,11 @@ public class F2CCodeDeployPublisher extends Publisher {
     public static final String    ROLE_SESSION_NAME                 = "jenkins-codedeploy-plugin";
     private static final String SYSTEM_FILE_SEPARATOR = "/";
     private static final String SYSTEM_OS = System.getProperty("os.name").toLowerCase().startsWith("win") ? "windows" : "linux";
-    
+
     private final String f2cEndpoint;
     private final String f2cAccessKey;
     private final String f2cSecretKey;
-    
+
     private final Long applicationRepoId;
     private final Long applicationId;
     private final String applicationVersion;
@@ -60,29 +60,32 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final String excludes;
     private final String appspecFilePath;
     private final String description;
-    
+
     private final String artifactType;
     private final String nexusGroupId;
     private final String nexusArtifactId;
     private final String nexusArtifactVersion;
+	private final String artifactoryGroupId;
+	private final String artifactoryArtifactId;
+	private final String artifactoryArtifactVersion;
     private final boolean autoDeploy;
     private final boolean waitForCompletion;
     private final Long pollingTimeoutSec;
     private final Long pollingFreqSec;
-    
+
     private final Long clusterId;
     private final Long clusterRoleId;
     private final Long serverId;
     private final Long contactGroupId;
     private final String deployStrategy;
-    
+
     private PrintStream logger;
-    
+
 	// Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
     public F2CCodeDeployPublisher(String f2cEndpoint, String f2cAccessKey, String f2cSecretKey, Long applicationRepoId,
     		Long applicationId, String applicationVersion, String includes, String excludes, Boolean autoDeploy,
-    		String artifactType, String nexusGroupId, String nexusArtifactId, String nexusArtifactVersion, Boolean waitForCompletion, Long pollingTimeoutSec,
+    		String artifactType, String nexusGroupId, String nexusArtifactId, String nexusArtifactVersion, String artifactoryArtifactId, String artifactoryGroupId, String artifactoryArtifactVersion, Boolean waitForCompletion, Long pollingTimeoutSec,
     		Long pollingFreqSec, Long clusterId, Long clusterRoleId, Long serverId, Long contactGroupId,
     		String deployStrategy, String description, String appspecFilePath) {
 		this.f2cEndpoint = f2cEndpoint;
@@ -96,6 +99,9 @@ public class F2CCodeDeployPublisher extends Publisher {
 		this.nexusGroupId = nexusGroupId;
 		this.nexusArtifactId = nexusArtifactId;
 		this.nexusArtifactVersion = nexusArtifactVersion;
+        this.artifactoryArtifactId = artifactoryArtifactId;
+        this.artifactoryGroupId = artifactoryGroupId;
+        this.artifactoryArtifactVersion = artifactoryArtifactVersion;
 		this.clusterId = clusterId;
 		this.clusterRoleId = clusterRoleId;
 		this.serverId = serverId;
@@ -105,7 +111,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 		this.autoDeploy = autoDeploy == null ? false : autoDeploy;
 		this.description = description;
 		this.appspecFilePath = StringUtils.isBlank(appspecFilePath) ? "appspec.yml" : appspecFilePath;
-		
+
 		if (waitForCompletion != null && waitForCompletion) {
             this.waitForCompletion = true;
             if (pollingTimeoutSec == null || pollingTimeoutSec <= 0) {
@@ -123,8 +129,8 @@ public class F2CCodeDeployPublisher extends Publisher {
             this.pollingTimeoutSec = null;
             this.pollingFreqSec = null;
         }
-	}
-    
+    }
+
 	@Override
     public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener) throws IOException, InterruptedException {
         this.logger = listener.getLogger();
@@ -133,13 +139,13 @@ public class F2CCodeDeployPublisher extends Publisher {
             log("Skipping CodeDeploy publisher as build failed");
             return true;
         }
-        
+
         FilePath workspace = build.getWorkspace();
         // ---------------- 开始校验各项输入 ----------------
         String newAppVersion = Utils.replaceTokens(build, listener, this.applicationVersion);
 
 		final Fit2CloudClient fit2CloudClient = new Fit2CloudClient(this.f2cAccessKey, this.f2cSecretKey, this.f2cEndpoint);
-		
+
 		ApplicationRepo repo = null;
 		try {
 			log("开始校验应用仓库 ...");
@@ -152,7 +158,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 			}
 		}
 		log("应用仓库 ... OK");
-		
+
 		Application app = null;
 		try {
 			log("开始校验应用 ...");
@@ -165,13 +171,13 @@ public class F2CCodeDeployPublisher extends Publisher {
 			}
 		}
 		log("应用 ... OK");
-		
+
 		String repoType = repo.getType();
 		if(!artifactType.equalsIgnoreCase(repoType)) {
 			log("所选仓库与 \"Zip文件上传设置\"中的类型设置不匹配!");
 			return false;
 		}
-		
+
 		Cluster cluster = null;
 		String clusterRoleName = null;
 		if(autoDeploy) {
@@ -186,7 +192,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 				}
 			}
 			log("集群 ... OK");
-			
+
 			try {
 				log("获取虚机组信息 ...");
 				ClusterRole clusterRole = fit2CloudClient.getClusterRole(clusterRoleId);
@@ -197,7 +203,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 			}
 		}
 		// ---------------- 结束校验各项输入 ----------------
-		
+
 		// ---------------- 开始生成zip包并上传 ----------------
 		int buildNumber = build.getNumber();
 		String prjName = build.getProject().getName();
@@ -206,7 +212,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         try {
         	String zipFileName = prjName+"-"+buildNumber+".zip";
         	zipFile = zipFile(zipFileName, workspace);
-        	
+
         	switch (artifactType) {
 			case ArtifactType.NEXUS:
 				if(StringUtils.isBlank(nexusArtifactId) || StringUtils.isBlank(nexusGroupId) || StringUtils.isBlank(nexusArtifactVersion)) {
@@ -241,7 +247,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         	}
         }
         // ---------------- 结束生成zip包并上传 ----------------
-        
+
         // ---------------- 开始注册应用版本 ----------------
         ApplicationRevision applicationRevision = null;
 		try {
@@ -254,7 +260,7 @@ public class F2CCodeDeployPublisher extends Publisher {
             return false;
 		}
 		// ---------------- 结束注册应用版本 ----------------
-		
+
 		// ---------------- 开始自动部署应用 ----------------
 		if(autoDeploy){
             try {
@@ -269,9 +275,9 @@ public class F2CCodeDeployPublisher extends Publisher {
                         ,contactGroupId);
 
                 log("触发FIT2CLOUD代码部署成功。");
-                
+
                 if(waitForCompletion) {
-                	
+
                 	HashMap<String, String> deploymentStatusMap = new HashMap<String, String>();
                 	deploymentStatusMap.put("pendding", "等待部署");
                 	deploymentStatusMap.put("executing", "部署中");
@@ -328,7 +334,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 
     private File zipFile(String zipFileName, FilePath sourceDirectory) throws IOException, InterruptedException, IllegalArgumentException {
     	FilePath appspecFp = new FilePath(sourceDirectory, appspecFilePath);
-    	
+
     	log("指定 appspecPath ::::: "+appspecFp.toURI().getPath());
         if (appspecFp.exists()) {
     		if(!"appspec.yml".equals(appspecFilePath)) {
@@ -397,7 +403,7 @@ public class F2CCodeDeployPublisher extends Publisher {
             }
             return FormValidation.ok("验证FIT2CLOUD帐号成功！");
         }
-    	
+
 		/**
          * In order to load the persisted global configuration, you have to
          * call load() in the constructor.
@@ -418,7 +424,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         public String getDisplayName() {
             return "FIT2CLOUD 代码部署";
         }
-        
+
         @Override
         public boolean configure(StaplerRequest req, JSONObject formData) throws FormException {
             req.bindParameters(this);
@@ -444,7 +450,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         	}
             return items;
         }
-        
+
         public ListBoxModel doFillApplicationIdItems(@QueryParameter String f2cAccessKey,
         		@QueryParameter String f2cSecretKey,
         		@QueryParameter String f2cEndpoint) {
@@ -463,7 +469,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     		}
         	return items;
         }
-        
+
         public ListBoxModel doFillClusterIdItems(@QueryParameter String f2cAccessKey,
         		@QueryParameter String f2cSecretKey,
         		@QueryParameter String f2cEndpoint) {
@@ -482,7 +488,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         	}
         	return items;
         }
-        
+
         public ListBoxModel doFillClusterRoleIdItems(@QueryParameter String f2cAccessKey,
         		@QueryParameter String f2cSecretKey,
         		@QueryParameter String f2cEndpoint,
@@ -503,7 +509,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         	}
         	return items;
         }
-        
+
         public ListBoxModel doFillServerIdItems(@QueryParameter String f2cAccessKey,
         		@QueryParameter String f2cSecretKey,
         		@QueryParameter String f2cEndpoint,
@@ -525,7 +531,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         	}
         	return items;
         }
-        
+
         public ListBoxModel doFillContactGroupIdItems(@QueryParameter String f2cAccessKey,
         		@QueryParameter String f2cSecretKey,
         		@QueryParameter String f2cEndpoint) {
@@ -544,7 +550,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         	}
         	return items;
         }
-        
+
         public ListBoxModel doFillDeployStrategyItems() {
             ListBoxModel items = new ListBoxModel();
 
@@ -554,7 +560,7 @@ public class F2CCodeDeployPublisher extends Publisher {
             }
             return items;
         }
-        
+
     }
 
 	public String getF2cEndpoint() {
@@ -636,7 +642,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 	public String getDescription() {
 		return description;
 	}
-	
+
 	public String getAppspecFilePath() {
 		return appspecFilePath;
 	}
