@@ -298,6 +298,16 @@ public class F2CCodeDeployPublisher extends Publisher {
                 		for(ApplicationDeploymentLog log : logs){
                 			log("主机:"+log.getServerName()+ "->" +deploymentStatusMap.get(log.getStatus()));
                 			if(log.getStatus().equals("failed")){
+                				log("部署失败原因如下：");
+								List<ApplicationDeploymentEventLog> eventLogs = fit2CloudClient.getDeploymentEventLogs(applicationDeployment.getId());
+								if (eventLogs !=null){
+									for (ApplicationDeploymentEventLog eventLog:eventLogs){
+										if (eventLog.getStatus().equals("failed")){
+											log("执行"+eventLog.getEventName()+".sh步骤出错"+":");
+											log(eventLog.getMsg());
+										}
+									}
+								}
                 				success = false;
                 			}
                 			if(log.getStatus().equals("executing")||log.getStatus().equals("pendding")){
@@ -308,16 +318,6 @@ public class F2CCodeDeployPublisher extends Publisher {
                 			if(success){
                 				log("部署成功！");
                 			}else{
-                				log("部署失败！");
-                				List<ApplicationDeploymentEventLog> eventLogs = fit2CloudClient.getDeploymentEventLogs(applicationDeployment.getId());
-								if (eventLogs !=null){
-									for (ApplicationDeploymentEventLog log:eventLogs){
-										if (log.getStatus().equals("failed")){
-											log(log.getEventName()+":");
-											log(log.getMsg());
-										}
-									}
-								}
 								return false;
                 			}
                 		}

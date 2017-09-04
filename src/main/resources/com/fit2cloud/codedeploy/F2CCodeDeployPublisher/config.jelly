@@ -51,7 +51,7 @@
 	        </f:entry>
 	    </f:radioBlock>
 	    <f:radioBlock title="上传至 Artifactory" name="artifactType" value="artifactory" inline="true" checked="false">
-            <f:entry title="path" field="path">
+            <f:entry title="Path" field="path">
                 <f:textbox />
             </f:entry>
         </f:radioBlock>
