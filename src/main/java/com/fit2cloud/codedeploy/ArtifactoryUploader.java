@@ -8,15 +8,14 @@ import org.jfrog.artifactory.client.model.File;
  * Created by linjinbo on 2017/8/30.
  */
 public class ArtifactoryUploader {
-    public String uploadArtifactory(java.io.File file,String artifactoryUrl,String username,String password,String repoName){
-        Artifactory artifactory = ArtifactoryClient.create(artifactoryUrl, username, password);
-//        ArtifactoryRequest repositoryRequest = new ArtifactoryRequestImpl().apiUrl("api/build")
-//                .method(ArtifactoryRequest.Method.GET)
-//                .requestType(ArtifactoryRequest.ContentType.JSON);
-//        List<String> response = artifactory.restCall(repositoryRequest);
-        //Users/linjinbo/Documents/settingl.xml
-        //Users/linjinbo/FIT2CLOUD/fit2cloud-codedeploy-plugin-ng/target/codedeploy.hpi
-        File result = artifactory.repository(repoName).upload("fit2cloud", file).doUpload();
+    public static String uploadArtifactory(java.io.File file,String server,String username,String password,String repo,String path){
+        Artifactory artifactory = ArtifactoryClient.create(server, username, password);
+        int index = repo.indexOf("artifactory");
+        String source = repo.substring(index);
+        StringBuilder filePath = new StringBuilder(path);
+        filePath.append("/").append(file.getName());
+        File result = artifactory.repository(source).upload(filePath.toString(),file).doUpload();
+        artifactory.close();
         return result.getUri();
     }
 }

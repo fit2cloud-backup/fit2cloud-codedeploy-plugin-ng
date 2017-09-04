@@ -4,4 +4,5 @@ public class ArtifactType {
 	public static final String NEXUS = "nexus";
 	public static final String OSS = "oss";
 	public static final String S3 = "s3";
+	public static final String ARTIFACTORY = "artifactory";
 }

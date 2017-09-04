@@ -51,16 +51,10 @@
 	        </f:entry>
 	    </f:radioBlock>
 	    <f:radioBlock title="上传至 Artifactory" name="artifactType" value="artifactory" inline="true" checked="false">
-               <f:entry title="GroupId" field="artifatoryGroupId">
-                   <f:textbox default="com.fit2cloud"/>
-               </f:entry>
-               <f:entry title="ArtifactId" field="artifactoryArtifactId">
-                   <f:textbox default="test"/>
-               </f:entry>
-               <f:entry title="ArtifactVersion" field="artifactoryArtifactVersion">
-                   <f:textbox default="1.0"/>
-               </f:entry>
-           </f:radioBlock>
+            <f:entry title="path" field="path">
+                <f:textbox />
+            </f:entry>
+        </f:radioBlock>
     </f:section>
     
     <f:section title="代码部署设置">

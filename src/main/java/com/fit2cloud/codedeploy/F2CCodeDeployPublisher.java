@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.fit2cloud.sdk.model.*;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
@@ -15,15 +16,6 @@ import org.kohsuke.stapler.StaplerRequest;
 
 import com.fit2cloud.sdk.Fit2CloudClient;
 import com.fit2cloud.sdk.Fit2CloudException;
-import com.fit2cloud.sdk.model.Application;
-import com.fit2cloud.sdk.model.ApplicationDeployment;
-import com.fit2cloud.sdk.model.ApplicationDeploymentLog;
-import com.fit2cloud.sdk.model.ApplicationRepo;
-import com.fit2cloud.sdk.model.ApplicationRevision;
-import com.fit2cloud.sdk.model.Cluster;
-import com.fit2cloud.sdk.model.ClusterRole;
-import com.fit2cloud.sdk.model.ContactGroup;
-import com.fit2cloud.sdk.model.Server;
 
 import hudson.Extension;
 import hudson.FilePath;
@@ -65,9 +57,6 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final String nexusGroupId;
     private final String nexusArtifactId;
     private final String nexusArtifactVersion;
-	private final String artifactoryGroupId;
-	private final String artifactoryArtifactId;
-	private final String artifactoryArtifactVersion;
     private final boolean autoDeploy;
     private final boolean waitForCompletion;
     private final Long pollingTimeoutSec;
@@ -78,6 +67,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final Long serverId;
     private final Long contactGroupId;
     private final String deployStrategy;
+    private final String path;
 
     private PrintStream logger;
 
@@ -85,9 +75,9 @@ public class F2CCodeDeployPublisher extends Publisher {
     @DataBoundConstructor
     public F2CCodeDeployPublisher(String f2cEndpoint, String f2cAccessKey, String f2cSecretKey, Long applicationRepoId,
     		Long applicationId, String applicationVersion, String includes, String excludes, Boolean autoDeploy,
-    		String artifactType, String nexusGroupId, String nexusArtifactId, String nexusArtifactVersion, String artifactoryArtifactId, String artifactoryGroupId, String artifactoryArtifactVersion, Boolean waitForCompletion, Long pollingTimeoutSec,
+    		String artifactType, String nexusGroupId, String nexusArtifactId, String nexusArtifactVersion,Boolean waitForCompletion, Long pollingTimeoutSec,
     		Long pollingFreqSec, Long clusterId, Long clusterRoleId, Long serverId, Long contactGroupId,
-    		String deployStrategy, String description, String appspecFilePath) {
+    		String deployStrategy, String path,String description, String appspecFilePath) {
 		this.f2cEndpoint = f2cEndpoint;
 		this.f2cAccessKey = f2cAccessKey;
 		this.f2cSecretKey = f2cSecretKey;
@@ -99,14 +89,12 @@ public class F2CCodeDeployPublisher extends Publisher {
 		this.nexusGroupId = nexusGroupId;
 		this.nexusArtifactId = nexusArtifactId;
 		this.nexusArtifactVersion = nexusArtifactVersion;
-        this.artifactoryArtifactId = artifactoryArtifactId;
-        this.artifactoryGroupId = artifactoryGroupId;
-        this.artifactoryArtifactVersion = artifactoryArtifactVersion;
 		this.clusterId = clusterId;
 		this.clusterRoleId = clusterRoleId;
 		this.serverId = serverId;
 		this.contactGroupId = contactGroupId;
 		this.deployStrategy = deployStrategy;
+		this.path = path;
 		this.artifactType = StringUtils.isBlank(artifactType) ? ArtifactType.NEXUS : artifactType;
 		this.autoDeploy = autoDeploy == null ? false : autoDeploy;
 		this.description = description;
@@ -230,6 +218,20 @@ public class F2CCodeDeployPublisher extends Publisher {
 				}
 				log("上传zip文件到nexus服务器成功!");
 				break;
+			case ArtifactType.ARTIFACTORY:
+				log("开始上传zip文件到Artifactory服务器");
+				log("type:"+artifactType);
+				log("repo:"+repo.getRepo());
+				try {
+					newAddress = ArtifactoryUploader.uploadArtifactory(zipFile,repo.getServer().trim(),repo.getAccessId(), repo.getAccessPassword(), repo.getRepo(),path);
+				} catch (Exception e) {
+					log("上传文件到 Artifactory 服务器失败！错误消息如下:");
+					log(e.getMessage());
+					e.printStackTrace(this.logger);
+					return false;
+				}
+				log("上传zip文件到Artifactory服务器成功!");
+				break;
 			default:
 				log("暂时不支持 "+artifactType+" 类型制品库");
 				return false;
@@ -309,6 +311,16 @@ public class F2CCodeDeployPublisher extends Publisher {
                 				log("部署成功！");
                 			}else{
                 				log("部署失败！");
+                				List<ApplicationDeploymentEventLog> eventLogs = fit2CloudClient.getDeploymentEventLogs(applicationDeployment.getId());
+								if (eventLogs !=null){
+									for (ApplicationDeploymentEventLog log:eventLogs){
+										log("log"+log);
+										if (log.getStatus().equals("failed")){
+											log(log.getEventName()+":");
+											log(log.getMsg());
+										}
+									}
+								}
                 			}
                 			break;
                 		}
@@ -322,6 +334,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                 }
             }catch (Exception e){
                 log("触发FIT2CLOUD代码部署失败，错误消息如下:");
+                log("可惜了");
                 log(e.getMessage());
                 e.printStackTrace(this.logger);
                 return false;
