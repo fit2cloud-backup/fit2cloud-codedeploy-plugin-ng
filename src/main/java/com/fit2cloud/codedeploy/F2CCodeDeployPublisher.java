@@ -220,8 +220,6 @@ public class F2CCodeDeployPublisher extends Publisher {
 				break;
 			case ArtifactType.ARTIFACTORY:
 				log("开始上传zip文件到Artifactory服务器");
-				log("type:"+artifactType);
-				log("repo:"+repo.getRepo());
 				try {
 					newAddress = ArtifactoryUploader.uploadArtifactory(zipFile,repo.getServer().trim(),repo.getAccessId(), repo.getAccessPassword(), repo.getRepo(),path);
 				} catch (Exception e) {
@@ -314,15 +312,14 @@ public class F2CCodeDeployPublisher extends Publisher {
                 				List<ApplicationDeploymentEventLog> eventLogs = fit2CloudClient.getDeploymentEventLogs(applicationDeployment.getId());
 								if (eventLogs !=null){
 									for (ApplicationDeploymentEventLog log:eventLogs){
-										log("log"+log);
 										if (log.getStatus().equals("failed")){
 											log(log.getEventName()+":");
 											log(log.getMsg());
 										}
 									}
 								}
+								return false;
                 			}
-                			break;
                 		}
                 		if(pollingFreqSec * ++i > pollingTimeoutSec){
                 			this.log("部署超时,请查看FIT2CLOUD控制台！");
@@ -334,7 +331,6 @@ public class F2CCodeDeployPublisher extends Publisher {
                 }
             }catch (Exception e){
                 log("触发FIT2CLOUD代码部署失败，错误消息如下:");
-                log("可惜了");
                 log(e.getMessage());
                 e.printStackTrace(this.logger);
                 return false;
