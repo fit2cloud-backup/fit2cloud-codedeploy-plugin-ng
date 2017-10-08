@@ -317,6 +317,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                 		if(allFinished){
                 			if(success){
                 				log("部署成功！");
+                				break;
                 			}else{
 								return false;
                 			}
