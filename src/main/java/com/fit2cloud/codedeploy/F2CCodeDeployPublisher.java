@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+//import com.fit2cloud.jenkins.aliyunoss.AliyunOSSClient;
+//import com.fit2cloud.jenkins.s3.AWSS3Client;
 import com.fit2cloud.sdk.model.*;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -69,15 +71,21 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final String deployStrategy;
     private final String path;
 
+    //上传到阿里云参数
+	private final String objectPrefixAliyun;
+
+	//上传到亚马逊参数
+	private final String objectPrefixAWS;
+
     private PrintStream logger;
 
 	// Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
     public F2CCodeDeployPublisher(String f2cEndpoint, String f2cAccessKey, String f2cSecretKey, Long applicationRepoId,
-    		Long applicationId, String applicationVersion, String includes, String excludes, Boolean autoDeploy,
-    		String artifactType, String nexusGroupId, String nexusArtifactId, String nexusArtifactVersion,Boolean waitForCompletion, Long pollingTimeoutSec,
-    		Long pollingFreqSec, Long clusterId, Long clusterRoleId, Long serverId, Long contactGroupId,
-    		String deployStrategy, String path,String description, String appspecFilePath) {
+								  Long applicationId, String applicationVersion, String includes, String excludes, Boolean autoDeploy,
+								  String artifactType, String nexusGroupId, String nexusArtifactId, String nexusArtifactVersion, Boolean waitForCompletion, Long pollingTimeoutSec,
+								  Long pollingFreqSec, Long clusterId, Long clusterRoleId, Long serverId, Long contactGroupId,
+								  String deployStrategy, String path, String description, String appspecFilePath, String objectPrefixAliyun, String objectPrefixAWS) {
 		this.f2cEndpoint = f2cEndpoint;
 		this.f2cAccessKey = f2cAccessKey;
 		this.f2cSecretKey = f2cSecretKey;
@@ -99,6 +107,8 @@ public class F2CCodeDeployPublisher extends Publisher {
 		this.autoDeploy = autoDeploy == null ? false : autoDeploy;
 		this.description = description;
 		this.appspecFilePath = StringUtils.isBlank(appspecFilePath) ? "appspec.yml" : appspecFilePath;
+		this.objectPrefixAliyun = objectPrefixAliyun;
+		this.objectPrefixAWS = objectPrefixAWS;
 
 		if (waitForCompletion != null && waitForCompletion) {
             this.waitForCompletion = true;
@@ -230,6 +240,86 @@ public class F2CCodeDeployPublisher extends Publisher {
 				}
 				log("上传zip文件到Artifactory服务器成功!");
 				break;
+//			case ArtifactType.OSS:
+//				log("开始上传zip文件到OSS服务器");
+//				//getBucketLocation
+//				String expFP = Utils.replaceTokens(build, listener, zipFile.toString());
+//
+//				if (expFP != null) {
+//					expFP = expFP.trim();
+//				}
+//
+//				// Resolve virtual path
+//				String expVP = Utils.replaceTokens(build, listener, objectPrefixAliyun);
+//				if (Utils.isNullOrEmpty(expVP)) {
+//					expVP = null;
+//				}
+//				if (!Utils.isNullOrEmpty(expVP) && !expVP.endsWith(Utils.FWD_SLASH)) {
+//					expVP = expVP.trim() + Utils.FWD_SLASH;
+//				}
+//				String location ="";
+//				try {
+//					location = AliyunOSSClient.uploadToJenkins(build, listener,
+//							repo.getAccessId(),
+//							repo.getAccessPassword(),
+//							".aliyuncs.com",
+//							repo.getRepo(), expFP, expVP);
+//					if (!location.equals("error")) {
+//						log("上传Artifacts到阿里云OSS成功!");
+//						log("location:"+location);
+//					}
+//				} catch (Exception e) {
+//					log("上传Artifact到阿里云OSS失败，错误消息如下:");
+//					log(e.getMessage());
+//					e.printStackTrace(this.logger);
+//					return false;
+//				}
+//				log("上传zip文件到oss服务器成功!");
+//				if (expVP ==null){
+//					newAddress = location+"/"+zipFile.getName();
+//				}else {
+//					newAddress = location+"/"+objectPrefixAliyun+"/"+zipFile.getName();
+//				}
+//				log("文件路径"+newAddress);
+//				break;
+//			case ArtifactType.S3:
+//				log("开始上传zip文件到AWS服务器");
+//				//getBucketLocation
+//				String expFPAws = Utils.replaceTokens(build, listener, zipFile.toString());
+//
+//				if (expFPAws != null) {
+//					expFPAws = expFPAws.trim();
+//				}
+//
+//				// Resolve virtual path
+//				String expVPAws = Utils.replaceTokens(build, listener, objectPrefixAWS);
+//				if (Utils.isNullOrEmpty(expVPAws)) {
+//					expVPAws = null;
+//				}
+//				if (!Utils.isNullOrEmpty(expVPAws) && !expVPAws.endsWith(Utils.FWD_SLASH)) {
+//					expVPAws = expVPAws.trim() + Utils.FWD_SLASH;
+//				}
+//				try {
+//					AWSS3Client.upload(build, listener,
+//							repo.getAccessId(),
+//							repo.getAccessPassword(),
+//							null,
+//							repo.getRepo(), expFPAws, expVPAws);
+//						log("上传Artifacts到亚马逊AWS成功!");
+//				} catch (Exception e) {
+//					log("上传Artifact到亚马逊AWS失败，错误消息如下:");
+//					log(e.getMessage());
+//					e.printStackTrace(this.logger);
+//					return false;
+//				}
+//				log("上传zip文件到亚马逊AWS服务器成功!");
+//				if (expVPAws ==null){
+//					newAddress = "https://s3.cn-north-1.amazonaws.com.cn"+"/"+zipFile.getName();
+//				}else {
+//					newAddress = "https://s3.cn-north-1.amazonaws.com.cn"+"/"+objectPrefixAWS+"/"+zipFile.getName();
+//				}
+//				log("文件路径:"+newAddress);
+//				break;
 			default:
 				log("暂时不支持 "+artifactType+" 类型制品库");
 				return false;
@@ -667,5 +757,17 @@ public class F2CCodeDeployPublisher extends Publisher {
 
 	private void log(String msg) {
 		logger.println(LOG_PREFIX+msg);
+	}
+
+	public String getPath() {
+		return path;
+	}
+
+	public String getObjectPrefixAliyun() {
+		return objectPrefixAliyun;
+	}
+
+	public String getObjectPrefixAWS() {
+		return objectPrefixAWS;
 	}
 }
