@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.fit2cloud.jenkins.aliyunoss.AliyunOSSClient;
-//import com.fit2cloud.jenkins.s3.AWSS3Client;
+import com.fit2cloud.jenkins.s3.AWSS3Client;
 import com.fit2cloud.sdk.model.*;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -257,16 +257,14 @@ public class F2CCodeDeployPublisher extends Publisher {
 				if (!Utils.isNullOrEmpty(expVP) && !expVP.endsWith(Utils.FWD_SLASH)) {
 					expVP = expVP.trim() + Utils.FWD_SLASH;
 				}
-				String location ="";
 				try {
-					location = AliyunOSSClient.uploadToJenkins(build, listener,
+					int filesUploaded = AliyunOSSClient.upload(build, listener,
 							repo.getAccessId(),
 							repo.getAccessPassword(),
 							".aliyuncs.com",
 							repo.getRepo(), expFP, expVP);
-					if (!location.equals("error")) {
+					if (filesUploaded>0) {
 						log("上传Artifacts到阿里云OSS成功!");
-						log("location:"+location);
 					}
 				} catch (Exception e) {
 					log("上传Artifact到阿里云OSS失败，错误消息如下:");
@@ -276,50 +274,50 @@ public class F2CCodeDeployPublisher extends Publisher {
 				}
 				log("上传zip文件到oss服务器成功!");
 				if (expVP ==null){
-					newAddress = location+"/"+zipFile.getName();
+					newAddress = zipFile.getName();
 				}else {
-					newAddress = location+"/"+objectPrefixAliyun+"/"+zipFile.getName();
+					newAddress = objectPrefixAliyun+"/"+zipFile.getName();
 				}
 				log("文件路径"+newAddress);
 				break;
-//			case ArtifactType.S3:
-//				log("开始上传zip文件到AWS服务器");
-//				//getBucketLocation
-//				String expFPAws = Utils.replaceTokens(build, listener, zipFile.toString());
-//
-//				if (expFPAws != null) {
-//					expFPAws = expFPAws.trim();
-//				}
-//
-//				// Resolve virtual path
-//				String expVPAws = Utils.replaceTokens(build, listener, objectPrefixAWS);
-//				if (Utils.isNullOrEmpty(expVPAws)) {
-//					expVPAws = null;
-//				}
-//				if (!Utils.isNullOrEmpty(expVPAws) && !expVPAws.endsWith(Utils.FWD_SLASH)) {
-//					expVPAws = expVPAws.trim() + Utils.FWD_SLASH;
-//				}
-//				try {
-//					AWSS3Client.upload(build, listener,
-//							repo.getAccessId(),
-//							repo.getAccessPassword(),
-//							null,
-//							repo.getRepo(), expFPAws, expVPAws);
-//						log("上传Artifacts到亚马逊AWS成功!");
-//				} catch (Exception e) {
-//					log("上传Artifact到亚马逊AWS失败，错误消息如下:");
-//					log(e.getMessage());
-//					e.printStackTrace(this.logger);
-//					return false;
-//				}
-//				log("上传zip文件到亚马逊AWS服务器成功!");
-//				if (expVPAws ==null){
-//					newAddress = "https://s3.cn-north-1.amazonaws.com.cn"+"/"+zipFile.getName();
-//				}else {
-//					newAddress = "https://s3.cn-north-1.amazonaws.com.cn"+"/"+objectPrefixAWS+"/"+zipFile.getName();
-//				}
-//				log("文件路径:"+newAddress);
-//				break;
+			case ArtifactType.S3:
+				log("开始上传zip文件到AWS服务器");
+				//getBucketLocation
+				String expFPAws = Utils.replaceTokens(build, listener, zipFile.toString());
+
+				if (expFPAws != null) {
+					expFPAws = expFPAws.trim();
+				}
+
+				// Resolve virtual path
+				String expVPAws = Utils.replaceTokens(build, listener, objectPrefixAWS);
+				if (Utils.isNullOrEmpty(expVPAws)) {
+					expVPAws = null;
+				}
+				if (!Utils.isNullOrEmpty(expVPAws) && !expVPAws.endsWith(Utils.FWD_SLASH)) {
+					expVPAws = expVPAws.trim() + Utils.FWD_SLASH;
+				}
+				try {
+					AWSS3Client.upload(build, listener,
+							repo.getAccessId(),
+							repo.getAccessPassword(),
+							null,
+							repo.getRepo(), expFPAws, expVPAws);
+						log("上传Artifacts到亚马逊AWS成功!");
+				} catch (Exception e) {
+					log("上传Artifact到亚马逊AWS失败，错误消息如下:");
+					log(e.getMessage());
+					e.printStackTrace(this.logger);
+					return false;
+				}
+				log("上传zip文件到亚马逊AWS服务器成功!");
+				if (expVPAws ==null){
+					newAddress = zipFile.getName();
+				}else {
+					newAddress = objectPrefixAWS+"/"+zipFile.getName();
+				}
+				log("文件路径:"+newAddress);
+				break;
 			default:
 				log("暂时不支持 "+artifactType+" 类型制品库");
 				return false;
