@@ -1,5 +1,8 @@
 package com.fit2cloud.codedeploy;
 
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.regions.RegionUtils;
+import com.amazonaws.services.s3.AmazonS3Client;
 import com.fit2cloud.sdk.model.ApplicationDeployPolicyType;
 import hudson.Util;
 import hudson.model.AbstractBuild;
@@ -31,6 +34,24 @@ public class Utils {
             isNumber = true;
         }
         return isNumber;
+    }
+
+    public static AmazonS3Client getAvaiableS3Client(String accessKey, String secretKey) {
+        try {
+            AmazonS3Client client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey));
+            client.setRegion(RegionUtils.getRegion("cn-north-1"));
+            client.getS3AccountOwner();
+            return client;
+        } catch (Exception e) {
+            try {
+                AmazonS3Client client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey));
+                client.getS3AccountOwner();
+                return client;
+            } catch (Exception e1) {
+                e1.printStackTrace();
+                return null;
+            }
+        }
     }
 
     public static String replaceTokens(AbstractBuild<?, ?> build,

@@ -8,8 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fit2cloud.jenkins.aliyunoss.AliyunOSSClient;
-import com.fit2cloud.jenkins.s3.AWSS3Client;
 import com.fit2cloud.sdk.model.*;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
