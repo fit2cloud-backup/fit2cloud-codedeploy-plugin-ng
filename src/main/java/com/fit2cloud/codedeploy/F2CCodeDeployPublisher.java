@@ -62,6 +62,11 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final Long pollingTimeoutSec;
     private final Long pollingFreqSec;
 
+    private final boolean nexusChecked;
+    private final boolean artifactoryChecked;
+    private final boolean ossChecked;
+    private final boolean s3Checked;
+
     private final Long clusterId;
     private final Long clusterRoleId;
     private final Long serverId;
@@ -82,7 +87,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     public F2CCodeDeployPublisher(String f2cEndpoint, String f2cAccessKey, String f2cSecretKey, Long applicationRepoId,
 								  Long applicationId, String applicationVersion, String includes, String excludes, Boolean autoDeploy,
 								  String artifactType, String nexusGroupId, String nexusArtifactId, String nexusArtifactVersion, Boolean waitForCompletion, Long pollingTimeoutSec,
-								  Long pollingFreqSec, Long clusterId, Long clusterRoleId, Long serverId, Long contactGroupId,
+								  Long pollingFreqSec, boolean nexusChecked, boolean artifactoryChecked, boolean ossChecked, boolean s3Checked, Long clusterId, Long clusterRoleId, Long serverId, Long contactGroupId,
 								  String deployStrategy, String path, String description, String appspecFilePath, String objectPrefixAliyun, String objectPrefixAWS) {
 		this.f2cEndpoint = f2cEndpoint;
 		this.f2cAccessKey = f2cAccessKey;
@@ -95,6 +100,10 @@ public class F2CCodeDeployPublisher extends Publisher {
 		this.nexusGroupId = nexusGroupId;
 		this.nexusArtifactId = nexusArtifactId;
 		this.nexusArtifactVersion = nexusArtifactVersion;
+		this.nexusChecked = artifactType.equals("nexus")?true:false;
+		this.artifactoryChecked = artifactType.equals("artifactory")?true:false;
+		this.ossChecked = artifactType.equals("oss")?true:false;
+		this.s3Checked = artifactType.equals("s3")?true:false;;
 		this.clusterId = clusterId;
 		this.clusterRoleId = clusterRoleId;
 		this.serverId = serverId;
@@ -537,7 +546,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     			List<ApplicationRepo> list = fit2CloudClient.getApplicationRepoList(null, null);
     			if(list != null && list.size() > 0) {
     				for(ApplicationRepo c : list) {
-    					items.add(c.getName()+c.getType(), String.valueOf(c.getId()));
+    					items.add(c.getName()+"   ("+c.getType()+")", String.valueOf(c.getId()));
     				}
     			}
         	} catch (Exception e) {
@@ -618,7 +627,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         		List<Server> list = fit2CloudClient.getServers(Long.parseLong(clusterId), Long.parseLong(clusterRoleId), null, null, null, null, false);
         		if(list != null && list.size() > 0) {
         			for(Server c : list) {
-        				items.add(c.getName(), String.valueOf(c.getId()));
+        				items.add(c.getName()+"("+c.getLocalIP()+")", String.valueOf(c.getId()));
         			}
         		}
         	} catch (Exception e) {
@@ -765,5 +774,21 @@ public class F2CCodeDeployPublisher extends Publisher {
 
 	public String getObjectPrefixAWS() {
 		return objectPrefixAWS;
+	}
+
+	public boolean isNexusChecked() {
+		return nexusChecked;
+	}
+
+	public boolean isArtifactoryChecked() {
+		return artifactoryChecked;
+	}
+
+	public boolean isOssChecked() {
+		return ossChecked;
+	}
+
+	public boolean isS3Checked() {
+		return s3Checked;
 	}
 }
