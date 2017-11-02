@@ -537,7 +537,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     			List<ApplicationRepo> list = fit2CloudClient.getApplicationRepoList(null, null);
     			if(list != null && list.size() > 0) {
     				for(ApplicationRepo c : list) {
-    					items.add(c.getName(), String.valueOf(c.getId()));
+    					items.add(c.getName()+c.getType(), String.valueOf(c.getId()));
     				}
     			}
         	} catch (Exception e) {
