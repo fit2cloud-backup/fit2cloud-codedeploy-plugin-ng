@@ -55,7 +55,7 @@
                 <f:textbox />
             </f:entry>
         </f:radioBlock>
-        <f:radioBlock title="上传至 阿里oss" name="artifactType" value="oss" inline="true" checked="${instance.ossChecked}">
+        <f:radioBlock title="上传至 阿里OSS" name="artifactType" value="oss" inline="true" checked="${instance.ossChecked}">
                     <f:entry title="Object前缀" field="objectPrefixAliyun">
                         <f:textbox />
                     </f:entry>

@@ -5,13 +5,13 @@
           具体信息可在用户菜单 -> 账户信息中查找到。
       </f:description>
 
-      <f:entry title="FIT2CLOUD API Endpoint" field="f2cEndpoint">
+      <f:entry title="FIT2CLOUD API Endpoint" field="f2cApiEndpoint">
           <f:textbox />
       </f:entry>
-      <f:entry title="API Access Key" field="f2cAccessKey">
+      <f:entry title="API Access Key" field="f2cApiAccessKey">
         <f:textbox />
       </f:entry>
-      <f:entry title="API Secret Key" field="f2cSecretKey">
+      <f:entry title="API Secret Key" field="f2cApiSecretKey">
         <f:password/>
       </f:entry>
       <f:description>

@@ -15,10 +15,10 @@ public class CodeDeployTest extends HudsonTestCase {
     @Test
     public void test() throws IOException {
         File file = new File("/Users/linjinbo/Downloads/download.zip");
-        String server = "http://163.53.91.134:8081";
+        String server = "http://****:8081";
         String username = "admin";
         String password = "fit2cloud";
-        String repo = "http://163.53.91.134:8081/artifactory/example-repo-local";
+        String repo = "http://****:8081/artifactory/example-repo-local";
         String path = "com/fit2cloud/plugins";
         String url = artifactoryUploader.uploadArtifactory(file,server,username,password,repo,path);
         System.out.println("result:"+url);

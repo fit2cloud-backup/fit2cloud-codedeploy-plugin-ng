@@ -74,6 +74,10 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final String deployStrategy;
     private final String path;
 
+    private String f2cApiEndpoint;
+    private String f2cApiAccessKey;
+    private String f2cApiSecretKey;
+
     //上传到阿里云参数
 	private final String objectPrefixAliyun;
 
@@ -88,7 +92,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 								  Long applicationId, String applicationVersion, String includes, String excludes, Boolean autoDeploy,
 								  String artifactType, String nexusGroupId, String nexusArtifactId, String nexusArtifactVersion, Boolean waitForCompletion, Long pollingTimeoutSec,
 								  Long pollingFreqSec, boolean nexusChecked, boolean artifactoryChecked, boolean ossChecked, boolean s3Checked, Long clusterId, Long clusterRoleId, Long serverId, Long contactGroupId,
-								  String deployStrategy, String path, String description, String appspecFilePath, String objectPrefixAliyun, String objectPrefixAWS) {
+								  String deployStrategy, String path, String description, String appspecFilePath, String objectPrefixAliyun, String objectPrefixAWS ,String f2cApiEndpoint,String f2cApiAccessKey,String f2cApiSecretKey) {
 		this.f2cEndpoint = f2cEndpoint;
 		this.f2cAccessKey = f2cAccessKey;
 		this.f2cSecretKey = f2cSecretKey;
@@ -116,6 +120,9 @@ public class F2CCodeDeployPublisher extends Publisher {
 		this.appspecFilePath = StringUtils.isBlank(appspecFilePath) ? "appspec.yml" : appspecFilePath;
 		this.objectPrefixAliyun = objectPrefixAliyun;
 		this.objectPrefixAWS = objectPrefixAWS;
+		this.f2cApiEndpoint = f2cApiEndpoint;
+		this.f2cApiAccessKey = f2cApiAccessKey;
+		this.f2cApiSecretKey = f2cApiSecretKey;
 
 		if (waitForCompletion != null && waitForCompletion) {
             this.waitForCompletion = true;
