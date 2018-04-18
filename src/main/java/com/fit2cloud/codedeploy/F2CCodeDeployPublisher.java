@@ -231,9 +231,13 @@ public class F2CCodeDeployPublisher extends Publisher {
 					log("请输入上传至 Nexus 的 GroupId、 ArtifactId 和 NexusArtifactVersion");
 					return false;
 				}
+				String nexusGroupIdNew = Utils.replaceTokens(build, listener, nexusGroupId);
+				String nexusArtifactIdNew = Utils.replaceTokens(build, listener, nexusArtifactId);
+				String nexusArtifactVersionNew = Utils.replaceTokens(build, listener, nexusArtifactVersion);
+				
 				log("开始上传zip文件到nexus服务器");
 				try {
-					newAddress = NexusUploader.upload(zipFile, repo.getAccessId(), repo.getAccessPassword(), repo.getRepo(), nexusGroupId, nexusArtifactId, String.valueOf(buildNumber), "zip", nexusArtifactVersion);
+					newAddress = NexusUploader.upload(zipFile, repo.getAccessId(), repo.getAccessPassword(), repo.getRepo(), nexusGroupIdNew, nexusArtifactIdNew, String.valueOf(buildNumber), "zip", nexusArtifactVersionNew);
 				} catch (Exception e) {
 					log("上传文件到 Nexus 服务器失败！错误消息如下:");
 		            log(e.getMessage());
@@ -244,8 +248,13 @@ public class F2CCodeDeployPublisher extends Publisher {
 				break;
 			case ArtifactType.ARTIFACTORY:
 				log("开始上传zip文件到Artifactory服务器");
+				if(StringUtils.isBlank(path)) {
+					log("请输入上传至 Artifactory 的 Path");
+					return false;
+				}
+				String pathNew = Utils.replaceTokens(build, listener, path);
 				try {
-					newAddress = ArtifactoryUploader.uploadArtifactory(zipFile,repo.getServer().trim(),repo.getAccessId(), repo.getAccessPassword(), repo.getRepo(),path);
+					newAddress = ArtifactoryUploader.uploadArtifactory(zipFile,repo.getServer().trim(),repo.getAccessId(), repo.getAccessPassword(), repo.getRepo(), pathNew);
 				} catch (Exception e) {
 					log("上传文件到 Artifactory 服务器失败！错误消息如下:");
 					log(e.getMessage());
