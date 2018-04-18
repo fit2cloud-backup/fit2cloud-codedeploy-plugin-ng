@@ -223,7 +223,9 @@ public class F2CCodeDeployPublisher extends Publisher {
 		String newAddress = null;
         try {
         	String zipFileName = prjName+"-"+buildNumber+".zip";
-        	zipFile = zipFile(zipFileName, workspace);
+        	String includesNew = Utils.replaceTokens(build, listener, includes);
+			String excludesNew = Utils.replaceTokens(build, listener, excludes);
+        	zipFile = zipFile(zipFileName, workspace, includesNew, excludesNew);
 
         	switch (artifactType) {
 			case ArtifactType.NEXUS:
@@ -453,7 +455,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     }
 
 
-    private File zipFile(String zipFileName, FilePath sourceDirectory) throws IOException, InterruptedException, IllegalArgumentException {
+    private File zipFile(String zipFileName, FilePath sourceDirectory, String includesNew, String excludesNew) throws IOException, InterruptedException, IllegalArgumentException {
     	FilePath appspecFp = new FilePath(sourceDirectory, appspecFilePath);
 
     	log("指定 appspecPath ::::: "+appspecFp.toURI().getPath());
@@ -477,10 +479,10 @@ public class F2CCodeDeployPublisher extends Publisher {
 
         FileOutputStream outputStream = new FileOutputStream(zipFile);
         try {
-        	String allIncludes = includes + ",appspec.yml";
+        	String allIncludes = includesNew + ",appspec.yml";
             sourceDirectory.zip(
                     outputStream,
-                    new DirScanner.Glob(allIncludes, this.excludes)
+                    new DirScanner.Glob(allIncludes, excludesNew)
             );
         } finally {
             outputStream.close();
