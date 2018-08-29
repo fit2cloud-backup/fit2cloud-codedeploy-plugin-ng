@@ -225,7 +225,8 @@ public class F2CCodeDeployPublisher extends Publisher {
         	String zipFileName = prjName+"-"+buildNumber+".zip";
         	String includesNew = Utils.replaceTokens(build, listener, includes);
 			String excludesNew = Utils.replaceTokens(build, listener, excludes);
-        	zipFile = zipFile(zipFileName, workspace, includesNew, excludesNew);
+			String appspecFilePathNew = Utils.replaceTokens(build, listener, appspecFilePath);
+        	zipFile = zipFile(zipFileName, workspace, includesNew, excludesNew, appspecFilePathNew);
 
         	switch (artifactType) {
 			case ArtifactType.NEXUS:
@@ -455,12 +456,12 @@ public class F2CCodeDeployPublisher extends Publisher {
     }
 
 
-    private File zipFile(String zipFileName, FilePath sourceDirectory, String includesNew, String excludesNew) throws IOException, InterruptedException, IllegalArgumentException {
-    	FilePath appspecFp = new FilePath(sourceDirectory, appspecFilePath);
+    private File zipFile(String zipFileName, FilePath sourceDirectory, String includesNew, String excludesNew, String appspecFilePathNew) throws IOException, InterruptedException, IllegalArgumentException {
+    	FilePath appspecFp = new FilePath(sourceDirectory, appspecFilePathNew);
 
     	log("指定 appspecPath ::::: "+appspecFp.toURI().getPath());
         if (appspecFp.exists()) {
-    		if(!"appspec.yml".equals(appspecFilePath)) {
+    		if(!"appspec.yml".equals(appspecFilePathNew)) {
     			FilePath appspecDestFP = new FilePath(sourceDirectory, "appspec.yml");
     			log("目标 appspecPath  ::::: "+appspecDestFP.toURI().getPath());
     			appspecFp.copyTo(appspecDestFP);
