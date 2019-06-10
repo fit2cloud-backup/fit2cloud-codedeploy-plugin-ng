@@ -288,7 +288,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 							repo.getAccessId(),
 							repo.getAccessPassword(),
 							".aliyuncs.com",
-							repo.getRepo(), expFP, expVP);
+							repo.getRepo(), expFP, expVP, zipFile);
 					if (filesUploaded>0) {
 						log("上传Artifacts到阿里云OSS成功!");
 					}
@@ -328,7 +328,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 							repo.getAccessId(),
 							repo.getAccessPassword(),
 							null,
-							repo.getRepo(), expFPAws, expVPAws);
+							repo.getRepo(), expFPAws, expVPAws, zipFile);
 						log("上传Artifacts到亚马逊AWS成功!");
 				} catch (Exception e) {
 					log("上传Artifact到亚马逊AWS失败，错误消息如下:");
